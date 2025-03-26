@@ -3,14 +3,17 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <unistd.h>
-
+#include <signal.h>
 #define FPATH_CONFIG "config"
 #define MAX_THREADS 10
 int numero=0;
 //Só mutex? só podem entrar um de cada
 // Shared memory como é?
 // Realease está bem?
-
+void handle_sigint(int sig) {
+    printf("\nCleaning up...\n");
+    exit(0);  // Exit gracefully
+}
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void* worker(void* i) {
@@ -24,6 +27,7 @@ void* worker(void* i) {
 
 
 int main() {
+    signal(SIGINT, handle_sigint);
     int i, worker_id[MAX_THREADS];
     pthread_t my_thread[MAX_THREADS];
 
