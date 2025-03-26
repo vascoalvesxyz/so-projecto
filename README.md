@@ -1,8 +1,8 @@
 # Entrega Intermédia
 
 ## Transaction Generator
-- [ ] Creation of Transaction Generators
-- [ ] Correct reading of command line parameters
+- [X] Creation of Transaction Generators
+- [X] Correct reading of command line parameters
 
 ## Controller
 - [ ] Booting the system, reading the configuration file, validating the data in the file, and applying the read configurations.
