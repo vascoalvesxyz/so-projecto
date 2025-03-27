@@ -4,72 +4,167 @@
 #include <semaphore.h>
 #include <unistd.h>
 #include <signal.h>
-#define FPATH_CONFIG "config"
-#define MAX_THREADS 10
-//Só mutex? só podem entrar um de cada
+#include <string.h>
+
+#define FPATH_CONFIG "config.cfg"
+#define FPATH_LOG "DEIChain_log.txt"
+
+// Só mutex? só podem entrar um de cada
 // Shared memory como é?
 // Realease está bem?
+
+/* GLOBAL VARIABLES */
 int numero=0;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutexWrite = PTHREAD_MUTEX_INITIALIZER;
 sem_t empty;
-void handle_sigint(int sig) {
-	printf("Statistics:\n");
-	printf("Bitches:0\n");
-	printf("Genshin Impact female characters in your account: 58");
-    printf("\nCleaning up...\n");
-    exit(0);  // Exit gracefully
+
+static pthread_mutex_t g_mutex_miner = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_mutex_logfile = PTHREAD_MUTEX_INITIALIZER;
+
+static unsigned int g_miners_max = 0;                   // number of miners (number of threads in the miner process)
+static unsigned int g_pool_size = 0;                    // number of slots on the transaction pool
+static unsigned int g_transactions_per_block = 0;       // number of transactions per block (will affect block size)
+static unsigned int g_blockchain_blocks = 0;            // maximum number of blocks that can be saved in the
+static unsigned int g_transaction_pool_size = 10000 ;   //
+
+/* FUNCTIONS DEFINITION */
+static void helper_print_and_log(const char* string);
+void c_import_config();
+void c_cleanup();
+void c_handle_sigint(int sig);
+void* miner_thread(void* i);
+void* validato(void* i);
+
+/* FUNCTIONS DELCARATION */
+static void helper_print_and_log(const char* string) {
+    if (string == NULL) return;
+
+    printf("%s\n", string);
+
+    FILE *f_log = fopen(FPATH_LOG, "a");
+    if (f_log != NULL) {
+        pthread_mutex_lock(&g_mutex_logfile);
+        fprintf(f_log, "%s\n", string);
+        pthread_mutex_unlock(&g_mutex_logfile);
+        fclose(f_log);
+    }
+
 }
-void* worker(void* i) {
+
+void c_import_config(const char* path) {
+
+    FILE *f_config = fopen(path, "r");
+
+    /* Do not read config file if it does not exist */
+    if (f_config == NULL) return;
+    
+    int line = 0;
+    char argument[256];
+    char value[256];
+
+    while (2 == fscanf(f_config, "%s - %s", argument, value)) {
+        line++;
+        /* if value is not a number ignore it 
+         * because atoi would convert to 0 */
+        if ( 0 != isalpha(value) ) {
+            printf("Error reading config: invalide value %s in line %d.\n", value, line);
+            break;
+        } 
+
+        if (strcmp(argument, "NUM_MINERS") == 0) {
+            g_miners_max = atoi(value);
+            continue;
+        }
+        if (strcmp(argument, "POOL_SIZE") == 0) {
+            g_pool_size = atoi(value);
+            continue;
+        }
+        if (strcmp(argument, "TRANSACTIONS_PER_BLOCK") == 0) {
+            g_transactions_per_block = atoi(value);
+            continue;
+        }
+        if (strcmp(argument, "BLOCKCHAIN_BLOCKS") == 0) {
+            g_blockchain_blocks = atoi(value);
+            continue;
+        }
+        if (strcmp(argument, "TRANSACTION_POOL_SIZE") == 0) {
+
+            g_transaction_pool_size = atoi(value) ;
+            printf("g_transaction_pool_size = \n");
+            continue;
+        }
+
+    }
+
+    fclose(f_config);
+}
+
+void c_cleanup() {
+    pthread_mutex_destroy(&g_mutex_miner);
+    pthread_mutex_destroy(&g_mutex_logfile);
+}
+
+void c_handle_sigint(int sig) {
+    printf("\nCleaning up...\n");
+    c_cleanup();
+
+    printf("Statistics:\n");
+    printf("Bitches:0\n");
+    printf("Genshin Impact female characters in your account: 58");
+    exit(EXIT_SUCCESS);  // Exit gracefully
+}
+
+void* miner_thread(void* i) {
     int w_id=*((int *)i);
-    pthread_mutex_lock(&mutex);
+    pthread_mutex_lock(&g_mutex_miner);
     printf("Miner %d: numero=%d\n",w_id,numero);
     numero +=1;
-	pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(&g_mutex_miner);
     pthread_exit(NULL);
 }
-void* Validato(void* i){
 
-	printf("I sure do love to validate stuff \n");
-
-	pthread_exit(NULL);
-	
-    }
+void* validato(void* i){
+    printf("I sure do love to validate stuff \n");
+    pthread_exit(NULL);
+}
 
 
 int main() {
-    signal(SIGINT, handle_sigint);
-    int i, worker_id[MAX_THREADS];
-    pthread_t my_thread[MAX_THREADS];
-	pthread_t validator;
-    FILE *file;
-    char buffer[255]; // Buffer to store each line
-	int trabalhos = MAX_THREADS;
-    file = fopen(FPATH_CONFIG, "r");
-    if (file == NULL) {
-        perror("Could not open file.");
-        return 1;
+
+    /* Handle signal */
+    signal(SIGINT, c_handle_sigint);
+
+    /* Import Config */
+    c_import_config(FPATH_CONFIG);
+
+    int i = 0;
+    pthread_t validator;
+    int trabalhos = g_miners_max;
+    int miner_thread_id[g_miners_max];
+    pthread_t miner_thread_arr[g_miners_max];
+
+    if (g_miners_max == 0) {
+        puts("Please define NUM_MINERS config file.");
+        c_cleanup();
+        exit(EXIT_FAILURE);
     }
 
-    while (fgets(buffer, sizeof(buffer), file) != NULL) {
-        printf("%s", buffer);
+    for (i = 0; i < g_miners_max; i++) {
+        miner_thread_id[i]=i+1;
+        pthread_create(&miner_thread_arr[i], NULL, miner_thread, &miner_thread_id[i]);
     }
 
-    fclose(file);
-    for (i = 0; i < MAX_THREADS; i++) {
-        worker_id[i]=i+1;
-        pthread_create(&my_thread[i], NULL, worker, &worker_id[i]);
-    }
-    pthread_create(&validator, NULL, Validato, &trabalhos);
+    pthread_create(&validator, NULL, validato, &trabalhos);
 
-    for(i=0; i< MAX_THREADS; i++){
-        pthread_join(my_thread[i], NULL);
+    for(i=0; i< g_miners_max; i++){
+        pthread_join(miner_thread_arr[i], NULL);
     }
     pthread_join(validator, NULL);
- 	while(1){
- 	}
-    printf("Done\n");
-    exit(0);
+
+    while(1){
+
+    }
+
+    c_cleanup();
     return 0;
 }
 

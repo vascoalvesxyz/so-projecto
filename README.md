@@ -10,7 +10,7 @@
 - [ ] Creation of the shared memories (2 shared memories)
 
 ## Preliminiary
-- [x] Capture signal SIGINT, terminate the simulation, and release resources. 
+- [X] Capture signal SIGINT, terminate the simulation, and release resources. 
 - [ ] Diagram with architecture and synchronization mechanisms
 - [ ] Synchronization with suitable mechanisms (semaphores, mutexes or condition variables
 
