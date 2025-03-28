@@ -6,7 +6,7 @@ DEBUG_FLAGS := -g
 .PHONY: install
 
 install:
-	${CC} ${FLAGS} controller.c -o controller
+	${CC} -Wall -Wextra ${FLAGS} controller.c -o controller
 
 debug:
 	${CC} ${DEBUG_FLAGS} controller.c -o controller

@@ -2,22 +2,32 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <unistd.h>
 #include <signal.h>
 #include <string.h>
 #include <stdint.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/mman.h>
 
 #define FPATH_CONFIG "config.cfg"
 #define FPATH_LOG "DEIChain_log.txt"
 
+#define SHMEM_PATH_BLOCKCHAIN "/dei_blockchain"
+#define SHMEM_PATH_POOL "/dei_transaction_pool"
+#define SHMEM_SIZE_POOL sizeof(Transaction) * g_pool_size
+
 /* GLOBAL VARIABLES */
 int numero=0;
-sem_t empty;
+
+
+static FILE *g_logfile_fptr;
+/*static char  g_logfile_buf[BUFSIZ];   // MANUAL BUFFER to avoid bottlenecks*/
+static pthread_mutex_t g_logfile_mutex = PTHREAD_MUTEX_INITIALIZER; 
+
+static char _buf[512];              // common buffer for many miscellaenous operations
 
 static pthread_mutex_t g_mutex_miner = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t g_mutex_logfile = PTHREAD_MUTEX_INITIALIZER;
-
-static char _buf[BUFSIZ];
 static unsigned int g_miners_max = 0;                   // number of miners (number of threads in the miner process)
 static unsigned int g_pool_size = 0;                    // number of slots on the transaction pool
 static unsigned int g_transactions_per_block = 0;       // number of transactions per block (will affect block size)
@@ -25,24 +35,27 @@ static unsigned int g_blockchain_blocks = 0;            // maximum number of blo
 static unsigned int g_transaction_pool_size = 10000 ;   //
 
 
-struct Transaction {
+typedef struct Transaction {
     uint32_t id_self;       // 4 bytes
     uint32_t id_sender;     // 4 bytes
     uint32_t id_reciever;   // 4 bytes
-    uint32_t timestamp;     // 4 bytes
+    uint32_t timestamp;     // 4 bytes (beware of 2032)
     uint8_t reward;         // 1 bytes
     uint8_t value;          // 1 bytes 
-};
+} Transaction;
 
 struct TransactionBlock {
 };
 
 /* FUNCTIONS DEFINITION */
 static void logputs(const char* string);
-int c_import_config();
+int  c_init();
+int  c_import_config();
 void c_cleanup();
-void c_handle_sigint(int sig);
-void* miner_thread(void* i);
+void c_handle_sigint();
+
+void mc_main();
+void* mc_miner_thread(void* id_ptr);
 void* validato(void* i);
 
 /* FUNCTIONS DELCARATION */
@@ -51,13 +64,11 @@ static void logputs(const char* string) {
 
     fputs(string, stdout);
 
-    FILE *f_log = fopen(FPATH_LOG, "a");
-    if (f_log != NULL) {
-        pthread_mutex_lock(&g_mutex_logfile);
-        fputs(string, f_log);
-        pthread_mutex_unlock(&g_mutex_logfile);
-        fclose(f_log);
-    }
+    /* REDO THIS SHIT */
+    pthread_mutex_lock(&g_logfile_mutex);
+    fputs(string, g_logfile_fptr);
+    fflush(g_logfile_fptr); // garantir write atomico
+    pthread_mutex_unlock(&g_logfile_mutex);
 
 }
 
@@ -65,6 +76,21 @@ static void logputs(const char* string) {
 #define logprintf(...)\
         sprintf(_buf, __VA_ARGS__);\
         logputs(_buf)
+
+int c_init() {
+
+    /* Clear log file and open it */
+    g_logfile_fptr = fopen(FPATH_LOG, "wa");
+    if (g_logfile_fptr == NULL) {
+        fputs("Failed to open log file: ", stderr);
+        return -1;
+    }
+
+    /* Set log file as manual buffer */
+    /*setvbuf(g_logfile_fptr, g_logfile_buf, _IOFBF, BUFSIZ);*/
+
+    return 1;
+}
 
 int c_import_config(const char* path) {
 
@@ -100,7 +126,7 @@ int c_import_config(const char* path) {
         } 
 
         /* check value */
-        for (int i = 0; i < strlen(value); i++) {
+        for (size_t i = 0; i < strlen(value); i++) {
             if ( value[i] > '9' || value[i] < '0') {
                 logprintf("Error reading config: invalide value %s in line %d.\n", value, line);
                 fclose(f_config);
@@ -112,6 +138,10 @@ int c_import_config(const char* path) {
             switch (idx) {
                 case 0:
                     g_miners_max = atoi(value);
+                    if (g_miners_max == 0) {
+                        fclose(f_config);
+                        return 0;
+                    }
                     break;
                 case 1:
                     g_pool_size = atoi(value);
@@ -143,23 +173,48 @@ int c_import_config(const char* path) {
 
 void c_cleanup() {
     pthread_mutex_destroy(&g_mutex_miner);
-    pthread_mutex_destroy(&g_mutex_logfile);
     logputs("Statistics:\n");
+
+    if (g_logfile_fptr != NULL) {
+        /* é necessário esperar pelo semaforo
+         * porque fclose dá flush */
+        pthread_mutex_lock(&g_logfile_mutex);
+        fclose(g_logfile_fptr);
+        pthread_mutex_unlock(&g_logfile_mutex);
+    }
+
 }
 
-void c_handle_sigint(int sig) {
+void c_handle_sigint() {
     logputs("SIGNAL: SIGINT - Cleaning up...\n");
     c_cleanup();
+    /*goto clean_pool;*/
     exit(EXIT_SUCCESS);
 }
 
-void* miner_thread(void* i) {
-    int w_id=*((int *)i);
+void mc_main() {
+    int mc_miner_thread_id[g_miners_max];
+    pthread_t mc_miner_thread_arr[g_miners_max];
+    unsigned int i = 0;
+
+    for (i = 0; i < g_miners_max; i++) {
+        mc_miner_thread_id[i]=i+1;
+        pthread_create(&mc_miner_thread_arr[i], NULL, mc_miner_thread, &mc_miner_thread_id[i]);
+    }
+
+    for(i=0; i< g_miners_max; i++){
+        pthread_join(mc_miner_thread_arr[i], NULL);
+    }
+}
+
+void* mc_miner_thread(void* id_ptr) {
+
+    // Cast  void* to int* and dereference
+    int id = *( (int *) id_ptr );
     pthread_mutex_lock(&g_mutex_miner);
-    logprintf("Miner %d: numero=%d\n",w_id,numero);
     numero +=1;
+    logprintf("Miner %d: numero=%d\n",id,numero);
     pthread_mutex_unlock(&g_mutex_miner);
-    logprintf("Miner %d: numero=%d\n",w_id,numero);
     pthread_exit(NULL);
 }
 
@@ -167,6 +222,7 @@ void* validato(void* i){
     logputs("I sure do love to validate stuff \n");
     pthread_exit(NULL);
 }
+
 
 
 int main() {
@@ -177,13 +233,11 @@ int main() {
     /* handle ctrl-z? */ 
     /*signal(SIGINT, c_handle_sigint);*/
 
-    FILE *f_log = fopen(FPATH_LOG, "w");
-    if (f_log == NULL) {
-        fputs("Failed to open log file: ", stderr);
+    /* Initialize stuff */
+    if (1 != c_init()) {
         c_cleanup();
         exit(EXIT_FAILURE);
     }
-    fclose(f_log);
 
     /* Import Config */
     if (1 != c_import_config(FPATH_CONFIG)) {
@@ -191,39 +245,28 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    /*key_t pool_shmem_key = ftok();*/
-    /*key_t ledger_shmem_key = ftok();*/
+    /* Initialize Shared Memory */
+    int pool_fd = shm_open(SHMEM_PATH_POOL, O_CREAT | O_RDWR, 0666);
+    /*ftruncate(pool_fd, SHMEM_SIZE_POOL);*/
+    Transaction *pool_data = mmap(NULL, SHMEM_SIZE_POOL, PROT_READ | PROT_WRITE, MAP_SHARED, pool_fd, 0);
+
+    /*pthread_t validator;*/
+    /*int trabalhos = g_miners_max;*/
+
+    
+    /*int fd_blockchain = shm_open(SHMEM_PATH_BLOCKCHAIN, O_CREAT | O_RDWR, 0666);*/
+    /*close(fd_blockchain);*/
 
 
 
-    int i = 0;
-    pthread_t validator;
-    int trabalhos = g_miners_max;
-    int miner_thread_id[g_miners_max];
-    pthread_t miner_thread_arr[g_miners_max];
+    /*pthread_create(&validator, NULL, validato, &trabalhos);*/
+    /*pthread_join(validator, NULL);*/
 
-    if (g_miners_max == 0) {
-        puts("Please define NUM_MINERS config file.");
-        c_cleanup();
-        exit(EXIT_FAILURE);
-    }
+    mc_main();
 
-    for (i = 0; i < g_miners_max; i++) {
-        miner_thread_id[i]=i+1;
-        pthread_create(&miner_thread_arr[i], NULL, miner_thread, &miner_thread_id[i]);
-    }
-
-    pthread_create(&validator, NULL, validato, &trabalhos);
-
-    for(i=0; i< g_miners_max; i++){
-        pthread_join(miner_thread_arr[i], NULL);
-    }
-    pthread_join(validator, NULL);
-
-    while(1) {
-
-    }
-
+    close(pool_fd);                      // Close file descriptor
+    munmap(pool_data, SHMEM_SIZE_POOL);  // Unmap memory
+    shm_unlink(SHMEM_PATH_POOL);         // Remove shared memory
     c_cleanup();
     return 0;
 }

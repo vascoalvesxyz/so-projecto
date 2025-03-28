@@ -15,5 +15,5 @@
 - [ ] Synchronization with suitable mechanisms (semaphores, mutexes or condition variables
 
 ## Misc.
-- [ ] Synchronized sending of output to log file and screen.
+- [X] Synchronized sending of output to log file and screen.
 - [X] Use a makefile.
