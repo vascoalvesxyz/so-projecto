@@ -5,7 +5,7 @@
 - [X] Correct reading of command line parameters
 
 ## Controller
-- [ ] Booting the system, reading the configuration file, validating the data in the file, and applying the read configurations.
+- [X] Booting the system, reading the configuration file, validating the data in the file, and applying the read configurations.
 - [ ] Creation of processes Miner, Validator, and Statistics.
 - [ ] Creation of the shared memories (2 shared memories)
 

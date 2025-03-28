@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+
 //É preciso já criar uma transaction?
 int main(int argc, char *argv[]) {
     int i, n_procs;
