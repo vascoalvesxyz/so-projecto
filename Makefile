@@ -1,5 +1,5 @@
 CC := gcc
-FLAGS := --std=c99 -O2
+FLAGS := -O2
 DEBUG_FLAGS := -g
 # LINKS := 
 

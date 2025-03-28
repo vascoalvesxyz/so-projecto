@@ -8,7 +8,6 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/mman.h>
 
 #define FPATH_CONFIG "config.cfg"
 #define FPATH_LOG "DEIChain_log.txt"
@@ -16,24 +15,6 @@
 #define SHMEM_PATH_BLOCKCHAIN "/dei_blockchain"
 #define SHMEM_PATH_POOL "/dei_transaction_pool"
 #define SHMEM_SIZE_POOL sizeof(Transaction) * g_pool_size
-
-/* GLOBAL VARIABLES */
-int numero=0;
-
-
-static FILE *g_logfile_fptr;
-/*static char  g_logfile_buf[BUFSIZ];   // MANUAL BUFFER to avoid bottlenecks*/
-static pthread_mutex_t g_logfile_mutex = PTHREAD_MUTEX_INITIALIZER; 
-
-static char _buf[512];              // common buffer for many miscellaenous operations
-
-static pthread_mutex_t g_mutex_miner = PTHREAD_MUTEX_INITIALIZER;
-static unsigned int g_miners_max = 0;                   // number of miners (number of threads in the miner process)
-static unsigned int g_pool_size = 0;                    // number of slots on the transaction pool
-static unsigned int g_transactions_per_block = 0;       // number of transactions per block (will affect block size)
-static unsigned int g_blockchain_blocks = 0;            // maximum number of blocks that can be saved in the
-static unsigned int g_transaction_pool_size = 10000 ;   //
-
 
 typedef struct Transaction {
     uint32_t id_self;       // 4 bytes
@@ -44,8 +25,23 @@ typedef struct Transaction {
     uint8_t value;          // 1 bytes 
 } Transaction;
 
-struct TransactionBlock {
-};
+/* GLOBAL VARIABLES */
+int numero=0;
+
+static char _buf[512];              // common buffer for many miscellaenous operations
+
+static FILE *g_logfile_fptr;
+static pthread_mutex_t g_logfile_mutex = PTHREAD_MUTEX_INITIALIZER; 
+
+static int pool_fd = -1; 
+static Transaction *pool_data;
+
+static pthread_mutex_t g_miner_mutex = PTHREAD_MUTEX_INITIALIZER;
+static unsigned int g_miners_max = 0;                   // number of miners (number of threads in the miner process)
+static unsigned int g_pool_size = 0;                    // number of slots on the transaction pool
+static unsigned int g_transactions_per_block = 0;       // number of transactions per block (will affect block size)
+static unsigned int g_blockchain_blocks = 0;            // maximum number of blocks that can be saved in the
+static unsigned int g_transaction_pool_size = 10000 ;   //
 
 /* FUNCTIONS DEFINITION */
 static void logputs(const char* string);
@@ -88,6 +84,10 @@ int c_init() {
 
     /* Set log file as manual buffer */
     /*setvbuf(g_logfile_fptr, g_logfile_buf, _IOFBF, BUFSIZ);*/
+
+    pool_fd = shm_open(SHMEM_PATH_POOL, O_CREAT | O_RDWR, 0666);
+    ftruncate(pool_fd, SHMEM_SIZE_POOL);
+    pool_data = mmap(NULL, SHMEM_SIZE_POOL, PROT_READ | PROT_WRITE, MAP_SHARED, pool_fd, 0);
 
     return 1;
 }
@@ -172,8 +172,7 @@ int c_import_config(const char* path) {
 }
 
 void c_cleanup() {
-    pthread_mutex_destroy(&g_mutex_miner);
-    logputs("Statistics:\n");
+    pthread_mutex_destroy(&g_miner_mutex);
 
     if (g_logfile_fptr != NULL) {
         /* é necessário esperar pelo semaforo
@@ -183,10 +182,18 @@ void c_cleanup() {
         pthread_mutex_unlock(&g_logfile_mutex);
     }
 
+    if (pool_fd != -1)
+        close(pool_fd);                      
+
+    if (pool_data != MAP_FAILED && pool_data != NULL)
+        munmap(pool_data, SHMEM_SIZE_POOL); 
+    
+    shm_unlink(SHMEM_PATH_POOL);
+
 }
 
 void c_handle_sigint() {
-    logputs("SIGNAL: SIGINT - Cleaning up...\n");
+    logputs("\nSIGNAL: SIGINT - Cleaning up...\n");
     c_cleanup();
     /*goto clean_pool;*/
     exit(EXIT_SUCCESS);
@@ -211,10 +218,13 @@ void* mc_miner_thread(void* id_ptr) {
 
     // Cast  void* to int* and dereference
     int id = *( (int *) id_ptr );
-    pthread_mutex_lock(&g_mutex_miner);
+    pthread_mutex_lock(&g_miner_mutex);
     numero +=1;
     logprintf("Miner %d: numero=%d\n",id,numero);
-    pthread_mutex_unlock(&g_mutex_miner);
+    pthread_mutex_unlock(&g_miner_mutex);
+    while(1) {
+
+    };
     pthread_exit(NULL);
 }
 
@@ -246,9 +256,6 @@ int main() {
     }
 
     /* Initialize Shared Memory */
-    int pool_fd = shm_open(SHMEM_PATH_POOL, O_CREAT | O_RDWR, 0666);
-    /*ftruncate(pool_fd, SHMEM_SIZE_POOL);*/
-    Transaction *pool_data = mmap(NULL, SHMEM_SIZE_POOL, PROT_READ | PROT_WRITE, MAP_SHARED, pool_fd, 0);
 
     /*pthread_t validator;*/
     /*int trabalhos = g_miners_max;*/
@@ -262,11 +269,22 @@ int main() {
     /*pthread_create(&validator, NULL, validato, &trabalhos);*/
     /*pthread_join(validator, NULL);*/
 
-    mc_main();
+    /* Miner Controller Process */
+    pid_t pid = fork();
+    if (pid == -1) {
+        logputs("Failed to start miner controller.");
+        goto exit_1;
+    } else if (pid == 0) {
+        mc_main();
+        goto exit_2;
+    }
 
-    close(pool_fd);                      // Close file descriptor
-    munmap(pool_data, SHMEM_SIZE_POOL);  // Unmap memory
-    shm_unlink(SHMEM_PATH_POOL);         // Remove shared memory
+    while (1) { }
+
+    /* Print statistics before cleaning */
+    exit_1:
+    logputs("Statistics:\n");
+    exit_2:
     c_cleanup();
     return 0;
 }
