@@ -17,7 +17,8 @@
 #define SHMEM_PATH_BLOCKCHAIN "/dei_blockchain"
 #define SHMEM_PATH_POOL "/dei_transaction_pool"
 #define SHMEM_SIZE_POOL sizeof(Transaction) * g_pool_size
-
+#define SHMEM_SIZE_BLOCK sizeof(Transaction)* g_transactions_per_block
+#define SHMEM_SIZE_BLOCKCHAIN sizeof(Transaction)* g_transactions_per_block * g_blockchain_blocks
 typedef struct MinerThreadArgs {
     pthread_mutex_t *mutex;
     int id;
@@ -43,7 +44,9 @@ static pthread_mutex_t g_logfile_mutex = PTHREAD_MUTEX_INITIALIZER;
 /* Shared Memory */
 static int g_shmem_pool_fd = -1; 
 static Transaction *g_shmem_pool_data = NULL;
-
+//Fazemos isto em blocos ou em transactions individuais? Sinto que não se ganha muito em fazer uma struct só para o bloco
+static int g_shmem_blockchain_fd = -1;
+static Transaction *g_shmem_blockchain_data = NULL;
 /* Process that we will generate */
 static pid_t g_pid_mc   = -1; // miner controller
 static pid_t g_pid_stat = -1; // statistics
@@ -115,6 +118,10 @@ void cleanup() {
         close(g_shmem_pool_fd);                      
     if (g_shmem_pool_data != NULL && g_shmem_pool_data != MAP_FAILED)
         munmap(g_shmem_pool_data, SHMEM_SIZE_POOL); 
+    if (g_shmem_blockchain_fd > -1) 
+        close(g_shmem_blockchain_fd);
+    if (g_shmem_blockchain_data != NULL && g_shmem_blockchain_data != MAP_FAILED)
+    	munmap(g_shmem_blockchain_data,SHMEM_SIZE_BLOCKCHAIN); 
 }
 
 int ctrler_init() {
@@ -127,6 +134,9 @@ int ctrler_init() {
     g_shmem_pool_fd = shm_open(SHMEM_PATH_POOL, O_CREAT | O_RDWR, 0666);
     ftruncate(g_shmem_pool_fd, SHMEM_SIZE_POOL);
     g_shmem_pool_data = mmap(NULL, SHMEM_SIZE_POOL, PROT_READ | PROT_WRITE, MAP_SHARED, g_shmem_pool_fd, 0);
+    g_shmem_blockchain_fd = shm_open(SHMEM_PATH_BLOCKCHAIN, O_CREAT | O_RDWR, 0666);
+    ftruncate(g_shmem_blockchain_fd, SHMEM_SIZE_BLOCKCHAIN);
+    g_shmem_blockchain_data = mmap(NULL, SHMEM_SIZE_BLOCKCHAIN, PROT_READ | PROT_WRITE, MAP_SHARED, g_shmem_pool_fd, 0);
     return 1;
 }
 
@@ -217,7 +227,16 @@ void ctrler_cleanup() {
 
 void ctrler_handle_sigint() {
     logputs("SIGNAL: SIGINT - Cleaning up...\n");
+    pid_t pidS = fork();
+    	if (pidS == -1) {
+        	logputs("Failed to start miner controller.");
+    	} else if (pidS == 0) {
+        	stat_main();
+    	}
     ctrler_cleanup();
+    int status;
+    waitpid(pidS, &status, 0);
+    
     exit(EXIT_SUCCESS);
 }
 
@@ -295,16 +314,7 @@ int main() {
     } 
 
     /* Statistics */
-    g_pid_stat = fork();
-    if (g_pid_stat < 0) {
-        logputs("Failed to start statistics.\n");
-        // await miner and validator
-        waitpid(g_pid_mc, NULL, 0);  
-        waitpid(g_pid_val, NULL, 0);  
-        goto exit_fail;
-    } else if (g_pid_stat == 0) {
-        stat_main();
-    } 
+    
 
     signal(SIGINT, ctrler_handle_sigint);
 
