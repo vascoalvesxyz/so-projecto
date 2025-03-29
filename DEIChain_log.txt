@@ -1,6 +1,9 @@
-miner 2: numero=1
-miner 1: numero=2
-miner 3: numero=3
-miner 4: numero=4
-miner 5: numero=5
-Miner Controller: Exited successfully!SIGNAL: SIGINT - Cleaning up...
+[2025-03-29 13:34:49] Validator: Exited successfully!
+[2025-03-29 13:34:49] Statistics: Exited successfully!
+[2025-03-29 13:34:49] miner 2: numero=1
+[2025-03-29 13:34:49] miner 1: numero=2
+[2025-03-29 13:34:49] miner 3: numero=3
+[2025-03-29 13:34:49] miner 4: numero=4
+[2025-03-29 13:34:49] miner 5: numero=5
+[2025-03-29 13:34:49] Miner Controller: Exited successfully!
+[2025-03-29 13:34:53] SIGNAL: SIGINT - Cleaning up...

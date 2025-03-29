@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
@@ -71,7 +72,10 @@ void  mc_main();
 void* mc_miner_thread(void* args);
 
 /* Validator */
-void* validato(void* i);
+void val_main();
+
+/* Statistics */
+void stat_main();
 
 /* FUNCTIONS DELCARATION */
 static void logputs(const char* string) {
@@ -86,7 +90,7 @@ static void logputs(const char* string) {
     fputs(string, stdout);
 
     pthread_mutex_lock(&g_logfile_mutex);
-    /*fputs(timestamp, g_logfile_fptr);*/
+    fputs(timestamp, g_logfile_fptr);
     fputs(string, g_logfile_fptr);
     fflush(g_logfile_fptr); // garantir write atomico
     pthread_mutex_unlock(&g_logfile_mutex);
@@ -105,6 +109,7 @@ void cleanup() {
         fclose(g_logfile_fptr);
         pthread_mutex_unlock(&g_logfile_mutex);
     }
+
     /* Every fork will have to close and unmap independently */
     if (g_shmem_pool_fd > -1) 
         close(g_shmem_pool_fd);                      
@@ -205,10 +210,7 @@ int ctrler_import_config(const char* path) {
 }
 
 void ctrler_cleanup() {
-
     cleanup();
-
-
     /* only controller can unlink */
     shm_unlink(SHMEM_PATH_POOL);
 }
@@ -237,7 +239,7 @@ void mc_main() {
     }
 
     pthread_mutex_destroy(&miner_mutex);
-    logputs("Miner Controller: Exited successfully!");
+    logputs("Miner Controller: Exited successfully!\n");
 
     cleanup();
     exit(EXIT_SUCCESS);
@@ -252,9 +254,17 @@ void* mc_miner_thread(void* args_ptr) {
     pthread_exit(NULL);
 }
 
-void* validato(void* i){
-    logputs("I sure do love to validate stuff \n");
-    pthread_exit(NULL);
+void val_main() {
+    logputs("Validator: Exited successfully!\n");
+    cleanup();
+    exit(EXIT_SUCCESS);
+}
+
+
+void stat_main() {
+    logputs("Statistics: Exited successfully!\n");
+    cleanup();
+    exit(EXIT_SUCCESS);
 }
 
 int main() {
@@ -271,6 +281,29 @@ int main() {
         goto exit_fail;
     } else if (g_pid_mc == 0) {
         mc_main();
+    } 
+
+    /* Validator */
+    g_pid_val = fork();
+    if (g_pid_val < 0) {
+        logputs("Failed to start validator.\n");
+        /* await miner before exiting */
+        waitpid(g_pid_mc, NULL, 0);  
+        goto exit_fail;
+    } else if (g_pid_val == 0) {
+        val_main();
+    } 
+
+    /* Statistics */
+    g_pid_stat = fork();
+    if (g_pid_stat < 0) {
+        logputs("Failed to start statistics.\n");
+        // await miner and validator
+        waitpid(g_pid_mc, NULL, 0);  
+        waitpid(g_pid_val, NULL, 0);  
+        goto exit_fail;
+    } else if (g_pid_stat == 0) {
+        stat_main();
     } 
 
     signal(SIGINT, ctrler_handle_sigint);
