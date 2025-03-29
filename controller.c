@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <time.h>
 
 #define FPATH_CONFIG "config.cfg"
 #define FPATH_LOG "DEIChain_log.txt"
@@ -15,6 +16,11 @@
 #define SHMEM_PATH_BLOCKCHAIN "/dei_blockchain"
 #define SHMEM_PATH_POOL "/dei_transaction_pool"
 #define SHMEM_SIZE_POOL sizeof(Transaction) * g_pool_size
+
+typedef struct MinerThreadArgs {
+    pthread_mutex_t *mutex;
+    int id;
+} MinerThreadArgs;
 
 typedef struct Transaction {
     uint32_t id_self;       // 4 bytes
@@ -27,16 +33,22 @@ typedef struct Transaction {
 
 /* GLOBAL VARIABLES */
 int numero=0;
-
 static char _buf[512];              // common buffer for many miscellaenous operations
 
-static FILE *g_logfile_fptr;
+/* Log file */
+static FILE *g_logfile_fptr = NULL;
 static pthread_mutex_t g_logfile_mutex = PTHREAD_MUTEX_INITIALIZER; 
 
-static int pool_fd = -1; 
-static Transaction *pool_data;
+/* Shared Memory */
+static int g_shmem_pool_fd = -1; 
+static Transaction *g_shmem_pool_data = NULL;
 
-static pthread_mutex_t g_miner_mutex = PTHREAD_MUTEX_INITIALIZER;
+/* Process that we will generate */
+static pid_t g_pid_mc   = -1; // miner controller
+static pid_t g_pid_stat = -1; // statistics
+static pid_t g_pid_val  = -1; // transaction validator
+
+/* Configuration Variables */
 static unsigned int g_miners_max = 0;                   // number of miners (number of threads in the miner process)
 static unsigned int g_pool_size = 0;                    // number of slots on the transaction pool
 static unsigned int g_transactions_per_block = 0;       // number of transactions per block (will affect block size)
@@ -45,27 +57,39 @@ static unsigned int g_transaction_pool_size = 10000 ;   //
 
 /* FUNCTIONS DEFINITION */
 static void logputs(const char* string);
-int  c_init();
-int  c_import_config();
-void c_cleanup();
-void c_handle_sigint();
 
-void mc_main();
-void* mc_miner_thread(void* id_ptr);
+void cleanup();
+
+/* Controller */
+int  ctrler_init();               // Initialize global variables;
+int  ctrler_import_config();     // import configuration
+void ctrler_cleanup();           // destroy global variables
+void ctrler_handle_sigint();
+
+/* Miner Controller */
+void  mc_main();
+void* mc_miner_thread(void* args);
+
+/* Validator */
 void* validato(void* i);
 
 /* FUNCTIONS DELCARATION */
 static void logputs(const char* string) {
     if (string == NULL) return;
 
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    char timestamp[32];  // Buffer for "YYYY-MM-DD HH:MM:SS"
+    strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S] ", tm_info);
+
+    fputs(timestamp, stdout);
     fputs(string, stdout);
 
-    /* REDO THIS SHIT */
     pthread_mutex_lock(&g_logfile_mutex);
+    /*fputs(timestamp, g_logfile_fptr);*/
     fputs(string, g_logfile_fptr);
     fflush(g_logfile_fptr); // garantir write atomico
     pthread_mutex_unlock(&g_logfile_mutex);
-
 }
 
 /* macro para ter args do printf */
@@ -73,26 +97,35 @@ static void logputs(const char* string) {
         sprintf(_buf, __VA_ARGS__);\
         logputs(_buf)
 
-int c_init() {
+void cleanup() {
 
+    /* main controller closes the logfile */
+    if (g_logfile_fptr != NULL) {
+        pthread_mutex_lock(&g_logfile_mutex);
+        fclose(g_logfile_fptr);
+        pthread_mutex_unlock(&g_logfile_mutex);
+    }
+    /* Every fork will have to close and unmap independently */
+    if (g_shmem_pool_fd > -1) 
+        close(g_shmem_pool_fd);                      
+    if (g_shmem_pool_data != NULL && g_shmem_pool_data != MAP_FAILED)
+        munmap(g_shmem_pool_data, SHMEM_SIZE_POOL); 
+}
+
+int ctrler_init() {
     /* Clear log file and open it */
     g_logfile_fptr = fopen(FPATH_LOG, "wa");
     if (g_logfile_fptr == NULL) {
         fputs("Failed to open log file: ", stderr);
         return -1;
     }
-
-    /* Set log file as manual buffer */
-    /*setvbuf(g_logfile_fptr, g_logfile_buf, _IOFBF, BUFSIZ);*/
-
-    pool_fd = shm_open(SHMEM_PATH_POOL, O_CREAT | O_RDWR, 0666);
-    ftruncate(pool_fd, SHMEM_SIZE_POOL);
-    pool_data = mmap(NULL, SHMEM_SIZE_POOL, PROT_READ | PROT_WRITE, MAP_SHARED, pool_fd, 0);
-
+    g_shmem_pool_fd = shm_open(SHMEM_PATH_POOL, O_CREAT | O_RDWR, 0666);
+    ftruncate(g_shmem_pool_fd, SHMEM_SIZE_POOL);
+    g_shmem_pool_data = mmap(NULL, SHMEM_SIZE_POOL, PROT_READ | PROT_WRITE, MAP_SHARED, g_shmem_pool_fd, 0);
     return 1;
 }
 
-int c_import_config(const char* path) {
+int ctrler_import_config(const char* path) {
 
     FILE *f_config = fopen(path, "r");
 
@@ -171,60 +204,51 @@ int c_import_config(const char* path) {
     return 1;
 }
 
-void c_cleanup() {
-    pthread_mutex_destroy(&g_miner_mutex);
+void ctrler_cleanup() {
 
-    if (g_logfile_fptr != NULL) {
-        /* é necessário esperar pelo semaforo
-         * porque fclose dá flush */
-        pthread_mutex_lock(&g_logfile_mutex);
-        fclose(g_logfile_fptr);
-        pthread_mutex_unlock(&g_logfile_mutex);
-    }
+    cleanup();
 
-    if (pool_fd != -1)
-        close(pool_fd);                      
 
-    if (pool_data != MAP_FAILED && pool_data != NULL)
-        munmap(pool_data, SHMEM_SIZE_POOL); 
-    
+    /* only controller can unlink */
     shm_unlink(SHMEM_PATH_POOL);
-
 }
 
-void c_handle_sigint() {
-    logputs("\nSIGNAL: SIGINT - Cleaning up...\n");
-    c_cleanup();
-    /*goto clean_pool;*/
+void ctrler_handle_sigint() {
+    logputs("SIGNAL: SIGINT - Cleaning up...\n");
+    ctrler_cleanup();
     exit(EXIT_SUCCESS);
 }
 
 void mc_main() {
-    int mc_miner_thread_id[g_miners_max];
+    MinerThreadArgs args[g_miners_max];
     pthread_t mc_miner_thread_arr[g_miners_max];
+
     unsigned int i = 0;
+    pthread_mutex_t miner_mutex = PTHREAD_MUTEX_INITIALIZER;
 
     for (i = 0; i < g_miners_max; i++) {
-        mc_miner_thread_id[i]=i+1;
-        pthread_create(&mc_miner_thread_arr[i], NULL, mc_miner_thread, &mc_miner_thread_id[i]);
+        args[i] = (MinerThreadArgs) {&miner_mutex, i+1};
+        pthread_create(&mc_miner_thread_arr[i], NULL, mc_miner_thread, (void*) &args[i]);
     }
 
+    /* wait for miner threads to be done */
     for(i=0; i< g_miners_max; i++){
         pthread_join(mc_miner_thread_arr[i], NULL);
     }
+
+    pthread_mutex_destroy(&miner_mutex);
+    logputs("Miner Controller: Exited successfully!");
+
+    cleanup();
+    exit(EXIT_SUCCESS);
 }
 
-void* mc_miner_thread(void* id_ptr) {
-
-    // Cast  void* to int* and dereference
-    int id = *( (int *) id_ptr );
-    pthread_mutex_lock(&g_miner_mutex);
+void* mc_miner_thread(void* args_ptr) {
+    MinerThreadArgs args = *( (MinerThreadArgs*) args_ptr );
+    pthread_mutex_lock(args.mutex);
     numero +=1;
-    logprintf("Miner %d: numero=%d\n",id,numero);
-    pthread_mutex_unlock(&g_miner_mutex);
-    while(1) {
-
-    };
+    logprintf("miner %d: numero=%d\n",args.id,numero);
+    pthread_mutex_unlock(args.mutex);
     pthread_exit(NULL);
 }
 
@@ -233,59 +257,31 @@ void* validato(void* i){
     pthread_exit(NULL);
 }
 
-
-
 int main() {
 
-    /* Handle signal */
-    /* quando devemos ignorar o ctrl-c? */ 
-    signal(SIGINT, c_handle_sigint);
-    /* handle ctrl-z? */ 
-    /*signal(SIGINT, c_handle_sigint);*/
-
-    /* Initialize stuff */
-    if (1 != c_init()) {
-        c_cleanup();
-        exit(EXIT_FAILURE);
+    /* Import Config and Initialize */
+    if (1 != ctrler_init() || 1 != ctrler_import_config(FPATH_CONFIG) ) {
+        goto exit_fail;
     }
 
-    /* Import Config */
-    if (1 != c_import_config(FPATH_CONFIG)) {
-        c_cleanup();
-        exit(EXIT_FAILURE);
-    }
-
-    /* Initialize Shared Memory */
-
-    /*pthread_t validator;*/
-    /*int trabalhos = g_miners_max;*/
-
-    
-    /*int fd_blockchain = shm_open(SHMEM_PATH_BLOCKCHAIN, O_CREAT | O_RDWR, 0666);*/
-    /*close(fd_blockchain);*/
-
-
-
-    /*pthread_create(&validator, NULL, validato, &trabalhos);*/
-    /*pthread_join(validator, NULL);*/
-
-    /* Miner Controller Process */
-    pid_t pid = fork();
-    if (pid == -1) {
-        logputs("Failed to start miner controller.");
-        goto exit_1;
-    } else if (pid == 0) {
+    /* Miner Controller */
+    g_pid_mc = fork();
+    if (g_pid_mc < 0) {
+        logputs("Failed to start miner controller.\n");
+        goto exit_fail;
+    } else if (g_pid_mc == 0) {
         mc_main();
-        goto exit_2;
-    }
+    } 
+
+    signal(SIGINT, ctrler_handle_sigint);
 
     while (1) { }
 
-    /* Print statistics before cleaning */
-    exit_1:
-    logputs("Statistics:\n");
-    exit_2:
-    c_cleanup();
-    return 0;
-}
+    exit_sucess:
+    ctrler_cleanup();
+    exit(EXIT_SUCCESS);
 
+    exit_fail:
+    ctrler_cleanup();
+    exit(EXIT_FAILURE);
+}
