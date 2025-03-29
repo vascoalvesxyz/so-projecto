@@ -14,11 +14,12 @@
 #define FPATH_CONFIG "config.cfg"
 #define FPATH_LOG "DEIChain_log.txt"
 
-#define SHMEM_PATH_BLOCKCHAIN "/dei_blockchain"
 #define SHMEM_PATH_POOL "/dei_transaction_pool"
 #define SHMEM_SIZE_POOL sizeof(Transaction) * g_pool_size
+#define SHMEM_PATH_BLOCKCHAIN "/dei_blockchain"
 #define SHMEM_SIZE_BLOCK sizeof(Transaction)* g_transactions_per_block
 #define SHMEM_SIZE_BLOCKCHAIN sizeof(Transaction)* g_transactions_per_block * g_blockchain_blocks
+
 typedef struct MinerThreadArgs {
     pthread_mutex_t *mutex;
     int id;
@@ -118,6 +119,7 @@ void cleanup() {
         close(g_shmem_pool_fd);                      
     if (g_shmem_pool_data != NULL && g_shmem_pool_data != MAP_FAILED)
         munmap(g_shmem_pool_data, SHMEM_SIZE_POOL); 
+
     if (g_shmem_blockchain_fd > -1) 
         close(g_shmem_blockchain_fd);
     if (g_shmem_blockchain_data != NULL && g_shmem_blockchain_data != MAP_FAILED)
@@ -134,6 +136,7 @@ int ctrler_init() {
     g_shmem_pool_fd = shm_open(SHMEM_PATH_POOL, O_CREAT | O_RDWR, 0666);
     ftruncate(g_shmem_pool_fd, SHMEM_SIZE_POOL);
     g_shmem_pool_data = mmap(NULL, SHMEM_SIZE_POOL, PROT_READ | PROT_WRITE, MAP_SHARED, g_shmem_pool_fd, 0);
+
     g_shmem_blockchain_fd = shm_open(SHMEM_PATH_BLOCKCHAIN, O_CREAT | O_RDWR, 0666);
     ftruncate(g_shmem_blockchain_fd, SHMEM_SIZE_BLOCKCHAIN);
     g_shmem_blockchain_data = mmap(NULL, SHMEM_SIZE_BLOCKCHAIN, PROT_READ | PROT_WRITE, MAP_SHARED, g_shmem_pool_fd, 0);
@@ -223,22 +226,27 @@ void ctrler_cleanup() {
     cleanup();
     /* only controller can unlink */
     shm_unlink(SHMEM_PATH_POOL);
+    shm_unlink(SHMEM_PATH_BLOCKCHAIN);
+
+    /* Await Children Processes. */
+    kill(g_pid_stat, SIGINT);
+    kill(g_pid_val, SIGINT);
+    kill(g_pid_mc, SIGINT);
+
+    pid_t killed;
+    do {
+        killed = wait(NULL);
+    }
+    while (killed != -1);
 }
 
 void ctrler_handle_sigint() {
     logputs("SIGNAL: SIGINT - Cleaning up...\n");
-    pid_t pidS = fork();
-    	if (pidS == -1) {
-        	logputs("Failed to start miner controller.");
-    	} else if (pidS == 0) {
-        	stat_main();
-    	}
+
     ctrler_cleanup();
-    int status;
-    waitpid(pidS, &status, 0);
-    
     exit(EXIT_SUCCESS);
 }
+
 
 void mc_main() {
     MinerThreadArgs args[g_miners_max];
@@ -281,9 +289,17 @@ void val_main() {
 
 
 void stat_main() {
-    logputs("Statistics: Exited successfully!\n");
-    cleanup();
-    exit(EXIT_SUCCESS);
+    void handle_signit() {
+        logputs("Statistics: Exited successfully!\n");
+        cleanup();
+        exit(EXIT_SUCCESS);
+    }
+
+    signal(SIGINT, handle_signit);
+
+    while (1) {
+
+    }
 }
 
 int main() {
@@ -302,25 +318,30 @@ int main() {
         mc_main();
     } 
 
+    /* Statistics */
+    g_pid_stat = fork();
+    if (g_pid_stat < 0) {
+        logputs("Failed to start Statistics controller.");
+        goto exit_fail;
+    } else if (g_pid_stat == 0) {
+        stat_main();
+    }
+
     /* Validator */
     g_pid_val = fork();
     if (g_pid_val < 0) {
         logputs("Failed to start validator.\n");
-        /* await miner before exiting */
-        waitpid(g_pid_mc, NULL, 0);  
         goto exit_fail;
     } else if (g_pid_val == 0) {
         val_main();
     } 
 
     /* Statistics */
-    
-
     signal(SIGINT, ctrler_handle_sigint);
 
     while (1) { }
 
-    exit_sucess:
+    exit_success:
     ctrler_cleanup();
     exit(EXIT_SUCCESS);
 
