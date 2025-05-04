@@ -1,3 +1,4 @@
+//Vasco Alves 2022228207 Joao Neto 2023234004
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -10,7 +11,9 @@
 #include <unistd.h>
 #include <time.h>
 #include <assert.h>
-
+//ERROR DETECTION (Tambem mas vamos ter novos erros
+//Lidar com sinais estranhos
+//E terminação das threads de forma segura? (Maybe we already have that)
 #include "transaction.h"
 #include "controller.h"
 
@@ -18,12 +21,12 @@
 
 #define SHMEM_PATH_POOL "/dei_transaction_pool"
 #define SHMEM_PATH_BLOCKCHAIN "/dei_blockchain"
-
+#define SEM_POOL_EMPTY "/dei_pool_empty"
+#define SEM_POOL_FULL "/dei_pool_full"
+#define SEM_POOL_MUTEX "/dei_pool_mutex"
 #define SHMEM_SIZE_POOL sizeof(Transaction) * g_pool_size
 #define SHMEM_SIZE_BLOCK sizeof(Transaction)* g_transactions_per_block
 #define SHMEM_SIZE_BLOCKCHAIN sizeof(Transaction)* g_transactions_per_block * g_blockchain_blocks
-
-/* GLOBAL VARIABLES */
 
 /* Shared Memory */
 static int g_shmem_pool_fd = -1; 
@@ -43,12 +46,15 @@ static unsigned int g_transactions_per_block = 0;       // number of transaction
 static unsigned int g_blockchain_blocks = 0;            // maximum number of blocks that can be saved in the
 static unsigned int g_transaction_pool_size = 10000 ;   // Transactions in POOL
 
-/* FUNCTIONS DELCARATION */
+
 
 /* Log Related Variables (declared external in controller.h) */
 char _buf[512];
 FILE *g_logfile_fptr = NULL;
 pthread_mutex_t g_logfile_mutex = PTHREAD_MUTEX_INITIALIZER; 
+sem_t *g_sem_pool_empty = NULL;
+sem_t *g_sem_pool_full = NULL;
+sem_t *g_sem_pool_mutex = NULL;
 
 void c_logputs(const char* string) {
     assert(string != NULL);
@@ -96,7 +102,8 @@ int c_ctrl_init() {
         fputs("Failed to open log file: ", stderr);
         return -1;
     }
-
+	//MESSAGE QUEUE
+	//NAMED PIPE
     g_shmem_pool_fd = shm_open(SHMEM_PATH_POOL, O_CREAT | O_RDWR, 0666);
     if (g_shmem_pool_fd < 0) {
         c_logputs("Controller: Failed to create shared memory for pool.");
@@ -122,6 +129,17 @@ int c_ctrl_init() {
         c_logputs("Controller: Failed to allocate shared memory for blockchain.");
         return 0;
     }
+    //Semaphore
+    g_sem_pool_empty = sem_open(SEM_POOL_EMPTY, O_CREAT, 0666, g_pool_size); 
+    g_sem_pool_full = sem_open(SEM_POOL_FULL, O_CREAT, 0666, 0); 
+    g_sem_pool_mutex = sem_open(SEM_POOL_MUTEX, O_CREAT, 0666, 1); 
+    
+    if (g_sem_pool_empty == SEM_FAILED || g_sem_pool_full == SEM_FAILED || g_sem_pool_mutex == SEM_FAILED) {
+        c_logputs("Failed to create semaphores");
+        return 0;
+    }
+    
+    return 1;
 
     return 1;
 }
@@ -206,8 +224,15 @@ int c_ctrl_import_config(const char* path) {
 
 void c_ctrl_cleanup() {
     c_cleanup();
-
+    //Is this needed?
+	if (g_sem_pool_empty != NULL) sem_close(g_sem_pool_empty);
+    if (g_sem_pool_full != NULL) sem_close(g_sem_pool_full);
+    if (g_sem_pool_mutex != NULL) sem_close(g_sem_pool_mutex);
+    
     /* only controller can unlink */
+    sem_unlink(SEM_POOL_EMPTY);
+    sem_unlink(SEM_POOL_FULL);
+    sem_unlink(SEM_POOL_MUTEX);
     shm_unlink(SHMEM_PATH_POOL);
     shm_unlink(SHMEM_PATH_BLOCKCHAIN);
 
@@ -246,6 +271,8 @@ void val_main() {
 
 
 void stat_main() {
+//Gerar Estatisticas
+// E escrever antes de acabar a simulação (Isto é a simulação acaba e enquanto fecha)
     void handle_signit() {
         c_logputs("Statistics: Exited successfully!\n");
         c_cleanup();
