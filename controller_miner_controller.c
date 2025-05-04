@@ -1,10 +1,13 @@
+//Vasco Alves 2022228207 Joao Neto 2023234004
 #include "controller.h"
 
 typedef struct MinerThreadArgs {
     pthread_mutex_t *mutex;
     int id;
 } MinerThreadArgs;
-
+//GET TRANSACTIONS
+//PROCESS THE BLOCKS (usar função fornecida)
+//SEND TO VALIDATOR
 
 /* "private" Variables */
 static unsigned int id=0;
