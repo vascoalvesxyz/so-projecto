@@ -2,6 +2,7 @@
 #define _TRANSACTION_H_
 
 #include <stdint.h>
+
 typedef struct Transaction {
     uint32_t id_self;       // 4 bytes
     uint32_t id_sender;     // 4 bytes

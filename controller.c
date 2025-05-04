@@ -43,13 +43,26 @@ static unsigned int g_transactions_per_block = 0;       // number of transaction
 static unsigned int g_blockchain_blocks = 0;            // maximum number of blocks that can be saved in the
 static unsigned int g_transaction_pool_size = 10000 ;   // Transactions in POOL
 
-/* FUNCTIONS DELCARATION */
 
 /* Log Related Variables (declared external in controller.h) */
 char _buf[512];
 FILE *g_logfile_fptr = NULL;
 pthread_mutex_t g_logfile_mutex = PTHREAD_MUTEX_INITIALIZER; 
 
+/* FUNCTIONS DELCARATION */
+void c_logputs(const char* string);
+void c_cleanup();
+/* Controller functions */
+int  c_ctrl_init();
+int  c_ctrl_import_config(const char* path);
+void c_ctrl_cleanup();
+void c_ctrl_handle_sigint();
+/* Validator thread */
+void val_main();
+/* Statistics thread */
+void stat_main();
+
+/* FUNCTIONS */
 void c_logputs(const char* string) {
     assert(string != NULL);
 
@@ -102,6 +115,7 @@ int c_ctrl_init() {
         c_logputs("Controller: Failed to create shared memory for pool.");
         return 0;
     } 
+
     ftruncate(g_shmem_pool_fd, SHMEM_SIZE_POOL);
 
     g_shmem_pool_data = mmap(NULL, SHMEM_SIZE_POOL, PROT_READ | PROT_WRITE, MAP_SHARED, g_shmem_pool_fd, 0);
@@ -296,7 +310,7 @@ int main() {
     /* Statistics */
     signal(SIGINT, c_ctrl_handle_sigint);
 
-    while (1) { }
+    while (wait(NULL) > 0) { }
 
     c_ctrl_cleanup();
     exit(EXIT_SUCCESS);
