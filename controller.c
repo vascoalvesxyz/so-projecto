@@ -129,8 +129,7 @@ int c_ctrl_init() {
         return 0;
     }
 
-    ShmemInfo info_transaction = (ShmemInfo) {SHMEM_SIZE_POOL,0,0,0,0,0};
-    write(g_shmem_pool_fd, (void*) &info_transaction, sizeof(ShmemInfo) );
+   
 
     puts("Allocated pool shared memory\n");
 
@@ -237,7 +236,9 @@ int c_ctrl_import_config(const char* path) {
     } 
 
     fclose(f_config);
-    return 1;
+    ShmemInfo info_transaction = (ShmemInfo) {SHMEM_SIZE_POOL,0,0,0,0,0};
+    write(g_shmem_pool_fd, (void*) &info_transaction, sizeof(ShmemInfo) );
+  return 1;
 }
 
 void c_ctrl_cleanup() {

@@ -19,12 +19,26 @@
  * making the aging field zero. */
 
 int   g_pool_fd;
-void  *g_pool_ptr;
+Transaction *g_pool_ptr;
 size_t g_pool_size;
 sem_t *g_sem_empty;
 sem_t *g_sem_full; 
 sem_t *g_sem_mutex;
+void write_transaction(Transaction t) {
+    // Wait for semaphores first (as previously discussed)
 
+    // Write to shared memory
+    for (unsigned i = 0; i < g_pool_size; i++) {
+        
+        if (g_pool_ptr[i].id_self == 0) {  // Find empty slot
+            g_pool_ptr[i] = t;
+            printf("Yeah its making");
+            break;
+        }
+    }
+
+    // Release semaphores
+}
 int t_init() {
     /* init shared memory */
     int fd = shm_open(SHMEM_PATH_POOL, O_RDWR, 0666);
@@ -80,7 +94,7 @@ void t_cleanup() {
 }
 
 
-Transaction transcation_generate() {
+Transaction transaction_generate() {
     /* id_self, id_sender, id_reciever, timestamp, reward, value */
     return (Transaction) { 0, 1, 2, 3, 4, 5 };
 }
@@ -104,7 +118,18 @@ int main(int argc, char *argv[]) {
     if (t_init() < 0) {
         exit(EXIT_FAILURE);
     }
-
+    while (1) {
+        sem_wait(g_sem_empty);  // Wait for empty slot
+        sem_wait(g_sem_mutex);  // Lock shared memory
+        
+        Transaction t = transaction_generate();
+        write_transaction(t);
+        
+        sem_post(g_sem_mutex);  // Unlock
+        sem_post(g_sem_full);   // Signal new transaction
+        
+        usleep(time_ms * 1000);
+    }
     /* Clean exit */
     t_cleanup();
     return 0;
