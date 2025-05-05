@@ -1,6 +1,6 @@
-[2025-05-05 21:52:50] miner 4: id=5
-[2025-05-05 21:52:50] miner 4: id=5
-[2025-05-05 21:52:50] miner 4: id=5
-[2025-05-05 21:52:50] miner 4: id=5
-[2025-05-05 21:52:50] miner 4: id=5
-[2025-05-05 21:52:50] Miner Controller: Exited successfully!
+[2025-05-06 00:20:50] miner 1: id=1
+[2025-05-06 00:20:50] miner 4: id=5
+[2025-05-06 00:20:50] miner 4: id=5
+[2025-05-06 00:20:50] miner 4: id=5
+[2025-05-06 00:20:50] miner 4: id=5
+[2025-05-06 00:20:50] Miner Controller: Exited successfully!

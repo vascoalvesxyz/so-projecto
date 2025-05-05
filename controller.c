@@ -20,9 +20,9 @@
 
 #define FPATH_CONFIG "config.cfg"
 
-#define SHMEM_SIZE_POOL sizeof(Transaction) * (g_pool_size + 1)
-#define SHMEM_SIZE_BLOCK sizeof(Transaction) * g_transactions_per_block
-#define SHMEM_SIZE_BLOCKCHAIN sizeof(Transaction)* g_transactions_per_block * g_blockchain_blocks
+#define SHMEM_SIZE_POOL       sizeof(Transaction) * (g_pool_size+1)
+#define SHMEM_SIZE_BLOCK      sizeof(Transaction) * g_transactions_per_block
+#define SHMEM_SIZE_BLOCKCHAIN sizeof(Transaction)*  g_transactions_per_block * g_blockchain_blocks
 
 /* Shared Memory */
 static int g_shmem_pool_fd = -1; 
@@ -149,6 +149,9 @@ int c_ctrl_init() {
     g_sem_pool_empty = sem_open(SEM_POOL_EMPTY, O_CREAT, 0666, g_pool_size); 
     g_sem_pool_full = sem_open(SEM_POOL_FULL, O_CREAT, 0666, 0); 
     g_sem_pool_mutex = sem_open(SEM_POOL_MUTEX, O_CREAT, 0666, 1); 
+    sem_init(g_sem_pool_empty, 0, g_pool_size);
+    sem_init(g_sem_pool_full,  0, 0);
+    sem_init(g_sem_pool_mutex, 0, 1);
 
     if (g_sem_pool_empty == SEM_FAILED || g_sem_pool_full == SEM_FAILED || g_sem_pool_mutex == SEM_FAILED) {
         c_logputs("Failed to create semaphores");

@@ -1,13 +1,14 @@
 //Vasco Alves 2022228207 Joao Neto 2023234004
-#include <stdio.h>
 #include <stdlib.h>
 #include <semaphore.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <unistd.h>
 #include <signal.h>
+
+#include <stdio.h>
+#include <unistd.h>
 
 
 #include "controller.h"   // has semaphore macros
@@ -25,6 +26,14 @@ size_t g_pool_size;
 sem_t *g_sem_empty;
 sem_t *g_sem_full; 
 sem_t *g_sem_mutex;
+
+/* Helper par dormir em millisegundos */
+static inline void sleep_ms(int milliseconds) {
+    struct timespec ts;
+    ts.tv_sec = milliseconds / 1000;
+    ts.tv_nsec = (milliseconds % 1000) * 1000000;
+    while (nanosleep(&ts, &ts) == -1) { }
+}
 
 int t_init() {
     /* init shared memory */
@@ -61,7 +70,7 @@ int t_init() {
     /* Initializado correctament */
     g_pool_fd = fd;
     g_pool_ptr = ptr;
-    g_pool_size = (unsigned char) size + sizeof(Transaction) ;
+    g_pool_size = size;
 
     g_sem_full = sem_full;
     g_sem_empty = sem_empty;
@@ -86,23 +95,9 @@ void handle_sigint() {
 }
 
 
-Transaction transaction_generate() {
+Transaction transaction_generate(int reward) {
     /* id_self, id_sender, id_reciever, timestamp, reward, value */
-    return (Transaction) { 0, 1, 2, 3, 4, 5 };
-}
-
-void write_transaction(Transaction t) {
-    sem_wait(g_sem_empty);  // Wait for empty slot
-    sem_wait(g_sem_mutex);  // Lock shared memory
-    for (unsigned i = 0; i < (g_pool_size/sizeof(Transaction)); i++) {
-        if (g_pool_ptr[i].id_self == 0) {  // Find empty slot
-            g_pool_ptr[i] = t;
-            printf("Yeah its making %d\n", i);
-        }
-    }
-    // Release semaphores
-    sem_post(g_sem_mutex);  // Unlock
-    sem_post(g_sem_full);   // Signal new transaction
+    return (Transaction) { 1, 2, 3, 4, reward, 5 };
 }
 
 int main(int argc, char *argv[]) {
@@ -127,10 +122,26 @@ int main(int argc, char *argv[]) {
 
     signal(SIGINT, handle_sigint);
 
+    Transaction *pool_ptr = g_pool_ptr + 1; // ignore first transaction
+    size_t pool_size = g_pool_size/sizeof(Transaction) - 1; // subtract first transaction
+
+    Transaction temp;
     while (1) {
-        Transaction t = transaction_generate();
-        write_transaction(t);
-        sleep(time_ms);
+        temp = transaction_generate(reward);
+        puts("[TxGen] Waiting...");
+        sem_wait(g_sem_empty);
+        sem_wait(g_sem_mutex);
+        for (unsigned i = 0; i < pool_size ; i++) {
+            if (pool_ptr[i].id_self == 0) {
+                pool_ptr[i] = temp;
+                printf("[TxGen] Inserting transaction in slot: %d\n", i);
+                break;
+            }
+        }
+        sem_post(g_sem_mutex);
+        sem_post(g_sem_full);
+        sleep_ms(time_ms);
+
     }
 
     /* Clean exit */
