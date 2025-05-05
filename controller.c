@@ -17,11 +17,9 @@
 
 #include "transaction.h"
 #include "controller.h"
-//ERROR DETECTION (Tambem mas vamos ter novos erros
-//Lidar com sinais estranhos
-//E terminação das threads de forma segura? (Maybe we already have that)
 
 #define FPATH_CONFIG "config.cfg"
+
 #define SHMEM_SIZE_POOL sizeof(Transaction) * g_pool_size
 #define SHMEM_SIZE_BLOCK sizeof(Transaction)* g_transactions_per_block
 #define SHMEM_SIZE_BLOCKCHAIN sizeof(Transaction)* g_transactions_per_block * g_blockchain_blocks
@@ -43,8 +41,6 @@ static unsigned int g_pool_size = 0;                    // number of slots on th
 static unsigned int g_transactions_per_block = 0;       // number of transactions per block (will affect block size)
 static unsigned int g_blockchain_blocks = 0;            // maximum number of blocks that can be saved in the
 static unsigned int g_transaction_pool_size = 10000 ;   // Transactions in POOL
-
-
 
 /* Log Related Variables (declared external in controller.h) */
 char _buf[512];
@@ -96,6 +92,10 @@ void c_cleanup() {
     }
 
     /* Every fork will have to close and unmap independently */
+    if (g_sem_pool_empty != NULL) sem_close(g_sem_pool_empty);
+    if (g_sem_pool_full != NULL) sem_close(g_sem_pool_full);
+    if (g_sem_pool_mutex != NULL) sem_close(g_sem_pool_mutex);
+
     if (g_shmem_pool_fd > -1) 
         close(g_shmem_pool_fd);                      
     if (g_shmem_pool_data != NULL && g_shmem_pool_data != MAP_FAILED)
@@ -104,7 +104,7 @@ void c_cleanup() {
     if (g_shmem_blockchain_fd > -1) 
         close(g_shmem_blockchain_fd);
     if (g_shmem_blockchain_data != NULL && g_shmem_blockchain_data != MAP_FAILED)
-    	munmap(g_shmem_blockchain_data,SHMEM_SIZE_BLOCKCHAIN); 
+        munmap(g_shmem_blockchain_data,SHMEM_SIZE_BLOCKCHAIN); 
 }
 
 int c_ctrl_init() {
@@ -114,8 +114,8 @@ int c_ctrl_init() {
         fputs("Failed to open log file: ", stderr);
         return -1;
     }
-	//MESSAGE QUEUE
-	//NAMED PIPE
+    //MESSAGE QUEUE
+    //NAMED PIPE
     g_shmem_pool_fd = shm_open(SHMEM_PATH_POOL, O_CREAT | O_RDWR, 0666);
     if (g_shmem_pool_fd < 0) {
         c_logputs("Controller: Failed to create shared memory for pool.");
@@ -147,12 +147,12 @@ int c_ctrl_init() {
     g_sem_pool_empty = sem_open(SEM_POOL_EMPTY, O_CREAT, 0666, g_pool_size); 
     g_sem_pool_full = sem_open(SEM_POOL_FULL, O_CREAT, 0666, 0); 
     g_sem_pool_mutex = sem_open(SEM_POOL_MUTEX, O_CREAT, 0666, 1); 
-    
+
     if (g_sem_pool_empty == SEM_FAILED || g_sem_pool_full == SEM_FAILED || g_sem_pool_mutex == SEM_FAILED) {
         c_logputs("Failed to create semaphores");
         return 0;
     }
-    
+
     return 1;
 
     return 1;
@@ -165,7 +165,7 @@ int c_ctrl_import_config(const char* path) {
     /* Do not read config file if it does not exist */
     if (f_config == NULL)
         return -1;
-    
+
     int fscanf_retvalue = 0;
     int idx = 0;
     int line = 0;
@@ -238,11 +238,7 @@ int c_ctrl_import_config(const char* path) {
 
 void c_ctrl_cleanup() {
     c_cleanup();
-    //Is this needed?
-	if (g_sem_pool_empty != NULL) sem_close(g_sem_pool_empty);
-    if (g_sem_pool_full != NULL) sem_close(g_sem_pool_full);
-    if (g_sem_pool_mutex != NULL) sem_close(g_sem_pool_mutex);
-    
+
     /* only controller can unlink */
     sem_unlink(SEM_POOL_EMPTY);
     sem_unlink(SEM_POOL_FULL);
@@ -285,8 +281,8 @@ void val_main() {
 
 
 void stat_main() {
-//Gerar Estatisticas
-// E escrever antes de acabar a simulação (Isto é a simulação acaba e enquanto fecha)
+    //Gerar Estatisticas
+    // E escrever antes de acabar a simulação (Isto é a simulação acaba e enquanto fecha)
     void handle_signit() {
         c_logputs("Statistics: Exited successfully!\n");
         c_cleanup();
@@ -295,9 +291,7 @@ void stat_main() {
 
     signal(SIGINT, handle_signit);
 
-    while (1) {
-
-    }
+    while (1) { }
 }
 
 int main() {
