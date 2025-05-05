@@ -1,7 +1,7 @@
-CC := gcc 
-FLAGS := -O2 -Wall -Wextra
+CC := gcc -std=c99 -D_POSIX_C_SOURCE=200809L
+FLAGS := -O2 -Wall -Wextra -Werror
 DEBUG := -g 
-LINKS := -z noexecstack  -lpthread -lrt
+LINKS := -z noexecstack -lpthread -lrt
 
 .PHONY: install
 

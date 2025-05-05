@@ -1,29 +1,27 @@
-//Vasco Alves 2022228207 Joao Neto 2023234004
+//Vasco Alves 2022228207
+//Joao Neto 2023234004
+#include <sys/mman.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <sys/wait.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
 #include <assert.h>
+
+#include "transaction.h"
+#include "controller.h"
 //ERROR DETECTION (Tambem mas vamos ter novos erros
 //Lidar com sinais estranhos
 //E terminação das threads de forma segura? (Maybe we already have that)
-#include "transaction.h"
-#include "controller.h"
 
 #define FPATH_CONFIG "config.cfg"
-
-#define SHMEM_PATH_POOL "/dei_transaction_pool"
-#define SHMEM_PATH_BLOCKCHAIN "/dei_blockchain"
-#define SEM_POOL_EMPTY "/dei_pool_empty"
-#define SEM_POOL_FULL "/dei_pool_full"
-#define SEM_POOL_MUTEX "/dei_pool_mutex"
 #define SHMEM_SIZE_POOL sizeof(Transaction) * g_pool_size
 #define SHMEM_SIZE_BLOCK sizeof(Transaction)* g_transactions_per_block
 #define SHMEM_SIZE_BLOCKCHAIN sizeof(Transaction)* g_transactions_per_block * g_blockchain_blocks
@@ -144,6 +142,7 @@ int c_ctrl_init() {
         c_logputs("Controller: Failed to allocate shared memory for blockchain.");
         return 0;
     }
+
     //Semaphore
     g_sem_pool_empty = sem_open(SEM_POOL_EMPTY, O_CREAT, 0666, g_pool_size); 
     g_sem_pool_full = sem_open(SEM_POOL_FULL, O_CREAT, 0666, 0); 

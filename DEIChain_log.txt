@@ -1,9 +1,9 @@
-[2025-04-03 19:29:55] miner 2: id=1
-[2025-04-03 19:29:55] miner 5: id=2
-[2025-04-03 19:29:55] miner 3: id=3
-[2025-04-03 19:29:55] miner 4: id=4
-[2025-04-03 19:29:55] miner 1: id=5
-[2025-04-03 19:29:55] Miner Controller: Exited successfully!
-[2025-04-03 19:30:08] SIGNAL: SIGINT - Cleaning up...
-[2025-04-03 19:30:08] Validator: Exited successfully!
-[2025-04-03 19:30:08] Statistics: Exited successfully!
+[2025-05-04 22:33:20] miner 3: id=5
+[2025-05-04 22:33:20] miner 3: id=5
+[2025-05-04 22:33:20] miner 3: id=5
+[2025-05-04 22:33:20] miner 3: id=5
+[2025-05-04 22:33:20] miner 3: id=5
+[2025-05-04 22:33:20] Miner Controller: Exited successfully!
+[2025-05-04 22:33:22] SIGNAL: SIGINT - Cleaning up...
+[2025-05-04 22:33:22] Statistics: Exited successfully!
+[2025-05-04 22:33:22] Validator: Exited successfully!

@@ -1,4 +1,6 @@
 //Vasco Alves 2022228207 Joao Neto 2023234004
+#include <strings.h>
+#include <signal.h>
 #include "controller.h"
 
 typedef struct MinerThreadArgs {
@@ -17,8 +19,7 @@ void c_mc_main(unsigned int miners_max) {
 
     MinerThreadArgs args[miners_max];
     pthread_t mc_miner_thread_arr[miners_max];
-    bzero(args, sizeof(MinerThreadArgs)*miners_max);
-    bzero(mc_miner_thread_arr, sizeof(pthread_t)*miners_max);
+
     unsigned int i = 0, created_threads = 0;
     pthread_mutex_t miner_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -50,5 +51,5 @@ void c_mc_main(unsigned int miners_max) {
         pthread_create(&mc_miner_thread_arr[i], NULL, miner_thread, (void*) &args[i]);
     }
 
-    handle_sigint();
+    handle_sigint(0);
 }

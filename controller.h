@@ -1,4 +1,3 @@
-
 #ifndef _CONTROLLER_H_
 #define _CONTROLLER_H_
 
@@ -6,16 +5,13 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <signal.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <sys/wait.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <time.h>
-#include <assert.h>
 
 #define FPATH_LOG "DEIChain_log.txt"
+#define SHMEM_PATH_POOL "/dei_transaction_pool"
+#define SHMEM_PATH_BLOCKCHAIN "/dei_blockchain"
+#define SEM_POOL_EMPTY "/dei_pool_empty"
+#define SEM_POOL_FULL "/dei_pool_full"
+#define SEM_POOL_MUTEX "/dei_pool_mutex"
 
 /* log related variables will be accessed by subprocesses */
 extern char _buf[512];
@@ -28,10 +24,9 @@ void c_logputs(const char* string);
         c_logputs(_buf)
 
 void c_cleanup();
-
-int  c_ctrl_init();               // Initialize global variables;
-int  c_ctrl_import_config();     // import configuration
-void c_ctrl_cleanup();           // destroy global variables
+int  c_ctrl_init();            
+int  c_ctrl_import_config(const char* path);
+void c_ctrl_cleanup();
 void c_ctrl_handle_sigint();
 
 void c_val_main();
