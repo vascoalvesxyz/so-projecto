@@ -20,8 +20,8 @@
 
 #define FPATH_CONFIG "config.cfg"
 
-#define SHMEM_SIZE_POOL sizeof(Transaction) * g_pool_size
-#define SHMEM_SIZE_BLOCK sizeof(Transaction)* g_transactions_per_block
+#define SHMEM_SIZE_POOL sizeof(Transaction) * (g_pool_size + 1)
+#define SHMEM_SIZE_BLOCK sizeof(Transaction) * g_transactions_per_block
 #define SHMEM_SIZE_BLOCKCHAIN sizeof(Transaction)* g_transactions_per_block * g_blockchain_blocks
 
 /* Shared Memory */
@@ -114,8 +114,7 @@ int c_ctrl_init() {
         fputs("Failed to open log file: ", stderr);
         return -1;
     }
-    //MESSAGE QUEUE
-    //NAMED PIPE
+
     g_shmem_pool_fd = shm_open(SHMEM_PATH_POOL, O_CREAT | O_RDWR, 0666);
     if (g_shmem_pool_fd < 0) {
         c_logputs("Controller: Failed to create shared memory for pool.");
@@ -129,6 +128,11 @@ int c_ctrl_init() {
         c_logputs("Controller: Failed to allocate shared memory for pool.");
         return 0;
     }
+
+    ShmemInfo info_transaction = (ShmemInfo) {SHMEM_SIZE_POOL,0,0,0,0,0};
+    write(g_shmem_pool_fd, (void*) &info_transaction, sizeof(ShmemInfo) );
+
+    puts("Allocated pool shared memory\n");
 
     g_shmem_blockchain_fd = shm_open(SHMEM_PATH_BLOCKCHAIN, O_CREAT | O_RDWR, 0666);
     if (g_shmem_blockchain_fd < 0) {

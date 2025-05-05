@@ -12,4 +12,6 @@ typedef struct Transaction {
     uint8_t value;          // 1 bytes 
 } Transaction;
 
+typedef Transaction ShmemInfo;
+
 #endif

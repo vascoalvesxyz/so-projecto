@@ -29,19 +29,21 @@ int t_init() {
     /* init shared memory */
     int fd = shm_open(SHMEM_PATH_POOL, O_RDWR, 0666);
     if (fd < 0) {
+        puts("Failed to open shared memory. Is controller running?");
         return fd;
     } 
 
-    /* assumindo que ftruncate já correu,
-     * o file descriptor deve conter o tamanho
-     * da transaction pool */
-    struct stat st;
-    fstat(fd, &st);
-    size_t size = st.st_size;
+    ShmemInfo info;
+    if (read(fd, &info, sizeof(Transaction)) < 0) {
+            return -1;
+    }
+
+    size_t size = (size_t) info.id_self;
+    printf("size = %ld\n", size);
 
     void *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (ptr == NULL) {
-        puts("Failed to open shared memory. Is controller running?\n");
+    if (ptr == MAP_FAILED) {
+        puts("Failed to allocate mapped memory.");
         close(fd);
         return -1;
     }
@@ -51,7 +53,7 @@ int t_init() {
     sem_t *sem_full = sem_open(SEM_POOL_FULL, 0);
     sem_t *sem_mutex = sem_open(SEM_POOL_MUTEX, 0);
     if (sem_empty == SEM_FAILED || sem_full == SEM_FAILED || sem_mutex == SEM_FAILED) {
-        puts("Failed to open semaphores. Is controller running?\n");
+        puts("Failed to open semaphores. Is controller running?");
         return -1;
     }
 
@@ -103,7 +105,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-
+    /* Clean exit */
     t_cleanup();
     return 0;
 }
