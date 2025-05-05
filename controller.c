@@ -120,18 +120,17 @@ int c_ctrl_init() {
         c_logputs("Controller: Failed to create shared memory for pool.");
         return 0;
     } 
-
     ftruncate(g_shmem_pool_fd, SHMEM_SIZE_POOL);
 
     g_shmem_pool_data = mmap(NULL, SHMEM_SIZE_POOL, PROT_READ | PROT_WRITE, MAP_SHARED, g_shmem_pool_fd, 0);
-    if (g_shmem_pool_data == NULL) {
+    if (g_shmem_pool_data == MAP_FAILED) {
         c_logputs("Controller: Failed to allocate shared memory for pool.");
         return 0;
     }
 
-   
-
-    puts("Allocated pool shared memory\n");
+    /* Set first transaction as size of pool */
+    memset(g_shmem_pool_data, 0, SHMEM_SIZE_POOL);
+    g_shmem_pool_data[0].id_self = SHMEM_SIZE_POOL;
 
     g_shmem_blockchain_fd = shm_open(SHMEM_PATH_BLOCKCHAIN, O_CREAT | O_RDWR, 0666);
     if (g_shmem_blockchain_fd < 0) {
@@ -155,8 +154,6 @@ int c_ctrl_init() {
         c_logputs("Failed to create semaphores");
         return 0;
     }
-
-    return 1;
 
     return 1;
 }
@@ -236,8 +233,6 @@ int c_ctrl_import_config(const char* path) {
     } 
 
     fclose(f_config);
-    ShmemInfo info_transaction = (ShmemInfo) {SHMEM_SIZE_POOL,0,0,0,0,0};
-    write(g_shmem_pool_fd, (void*) &info_transaction, sizeof(ShmemInfo) );
   return 1;
 }
 
@@ -302,7 +297,11 @@ void stat_main() {
 int main() {
 
     /* Import Config and Initialize */
-    if (1 != c_ctrl_init() || 1 != c_ctrl_import_config(FPATH_CONFIG) ) {
+    if (1 != c_ctrl_import_config(FPATH_CONFIG)) {
+        goto exit_fail;
+    }
+
+    if (1 != c_ctrl_init() ) {
         goto exit_fail;
     }
 

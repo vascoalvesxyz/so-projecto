@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <signal.h>
 
 
 #include "controller.h"   // has semaphore macros
@@ -24,6 +25,7 @@ size_t g_pool_size;
 sem_t *g_sem_empty;
 sem_t *g_sem_full; 
 sem_t *g_sem_mutex;
+
 void write_transaction(Transaction t) {
     // Wait for semaphores first (as previously discussed)
 
@@ -93,6 +95,11 @@ void t_cleanup() {
     sem_close(g_sem_mutex);
 }
 
+void handle_sigint() {
+    t_cleanup();
+    exit(0);
+}
+
 
 Transaction transaction_generate() {
     /* id_self, id_sender, id_reciever, timestamp, reward, value */
@@ -118,6 +125,9 @@ int main(int argc, char *argv[]) {
     if (t_init() < 0) {
         exit(EXIT_FAILURE);
     }
+
+    signal(SIGINT, handle_sigint);
+
     while (1) {
         sem_wait(g_sem_empty);  // Wait for empty slot
         sem_wait(g_sem_mutex);  // Lock shared memory
@@ -128,8 +138,9 @@ int main(int argc, char *argv[]) {
         sem_post(g_sem_mutex);  // Unlock
         sem_post(g_sem_full);   // Signal new transaction
         
-        usleep(time_ms * 1000);
+        sleep(time_ms);
     }
+
     /* Clean exit */
     t_cleanup();
     return 0;

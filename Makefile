@@ -1,5 +1,5 @@
 CC := gcc -std=c99 -D_POSIX_C_SOURCE=200809L
-FLAGS := -O2 -Wall -Wextra
+FLAGS := -O2 -Wall -Wextra -Werror
 DEBUG := -g 
 LINKS := -z noexecstack -lpthread -lrt
 
