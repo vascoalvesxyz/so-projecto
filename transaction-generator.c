@@ -26,21 +26,6 @@ sem_t *g_sem_empty;
 sem_t *g_sem_full; 
 sem_t *g_sem_mutex;
 
-void write_transaction(Transaction t) {
-    // Wait for semaphores first (as previously discussed)
-
-    // Write to shared memory
-    for (unsigned i = 0; i < g_pool_size; i++) {
-        
-        if (g_pool_ptr[i].id_self == 0) {  // Find empty slot
-            g_pool_ptr[i] = t;
-            printf("Yeah its making");
-            break;
-        }
-    }
-
-    // Release semaphores
-}
 int t_init() {
     /* init shared memory */
     int fd = shm_open(SHMEM_PATH_POOL, O_RDWR, 0666);
@@ -76,7 +61,7 @@ int t_init() {
     /* Initializado correctament */
     g_pool_fd = fd;
     g_pool_ptr = ptr;
-    g_pool_size = size;
+    g_pool_size = (unsigned char) size + sizeof(Transaction) ;
 
     g_sem_full = sem_full;
     g_sem_empty = sem_empty;
@@ -106,6 +91,20 @@ Transaction transaction_generate() {
     return (Transaction) { 0, 1, 2, 3, 4, 5 };
 }
 
+void write_transaction(Transaction t) {
+    sem_wait(g_sem_empty);  // Wait for empty slot
+    sem_wait(g_sem_mutex);  // Lock shared memory
+    for (unsigned i = 0; i < (g_pool_size/sizeof(Transaction)); i++) {
+        if (g_pool_ptr[i].id_self == 0) {  // Find empty slot
+            g_pool_ptr[i] = t;
+            printf("Yeah its making %d\n", i);
+        }
+    }
+    // Release semaphores
+    sem_post(g_sem_mutex);  // Unlock
+    sem_post(g_sem_full);   // Signal new transaction
+}
+
 int main(int argc, char *argv[]) {
 
 	/* Check arguments */
@@ -129,15 +128,8 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, handle_sigint);
 
     while (1) {
-        sem_wait(g_sem_empty);  // Wait for empty slot
-        sem_wait(g_sem_mutex);  // Lock shared memory
-        
         Transaction t = transaction_generate();
         write_transaction(t);
-        
-        sem_post(g_sem_mutex);  // Unlock
-        sem_post(g_sem_full);   // Signal new transaction
-        
         sleep(time_ms);
     }
 
