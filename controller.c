@@ -1,23 +1,6 @@
+#include "controller.h"
 //Vasco Alves 2022228207
 //Joao Neto 2023234004
-#include <sys/mman.h>
-#include <sys/wait.h>
-#include <sys/types.h>
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <string.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <time.h>
-#include <assert.h>
-
-#include "transaction.h"
-#include "controller.h"
-
 /* Process that we will generate */
 static pid_t g_pid_mc   = -1; // miner controller
 static pid_t g_pid_stat = -1; // statistics
@@ -29,7 +12,8 @@ Transaction *g_shmem_pool_data = NULL;
 int g_shmem_blockchain_fd = -1;
 Transaction *g_shmem_blockchain_data = NULL;
 
-/* Configuration Variables */
+int g_pipe_validator = -1; /* Configuration Variables */
+
 unsigned int g_miners_max = 0;                   // number of miners (number of threads in the miner process)
 unsigned int g_pool_size = 0;                    // number of slots on the transaction pool
 unsigned int g_transactions_per_block = 0;       // number of transactions per block (will affect block size)
@@ -78,7 +62,8 @@ void c_cleanup() {
     /* main controller closes the logfile */
     if (g_logfile_fptr != NULL)
         fclose(g_logfile_fptr);
-
+    if(g_pipe_validator > 0)
+        close(g_pipe_validator);
     /* Every fork will have to close and unmap independently */
     if (g_sem_pool_empty != NULL) sem_close(g_sem_pool_empty);
     if (g_sem_pool_full != NULL) sem_close(g_sem_pool_full);
@@ -108,8 +93,10 @@ int c_ctrl_init() {
         c_logputs("Controller: Failed to create shared memory for pool.");
         return 0;
     } 
-    ftruncate(g_shmem_pool_fd, SHMEM_SIZE_POOL);
-
+if (ftruncate(g_shmem_pool_fd, SHMEM_SIZE_POOL) == -1) {
+    perror("ftruncate (pool) failed");
+    exit(EXIT_FAILURE);  // or handle the error appropriately
+}
     g_shmem_pool_data = mmap(NULL, SHMEM_SIZE_POOL, PROT_READ | PROT_WRITE, MAP_SHARED, g_shmem_pool_fd, 0);
     if (g_shmem_pool_data == MAP_FAILED) {
         c_logputs("Controller: Failed to allocate shared memory for pool.");
@@ -125,8 +112,10 @@ int c_ctrl_init() {
         c_logputs("Controller: Failed to create shared memory for blockchain.");
         return 0;
     } 
-    ftruncate(g_shmem_blockchain_fd, SHMEM_SIZE_BLOCKCHAIN);
-
+if (ftruncate(g_shmem_blockchain_fd, SHMEM_SIZE_BLOCKCHAIN) == -1) {
+    perror("ftruncate (blockchain) failed");
+    exit(EXIT_FAILURE);
+}
     g_shmem_blockchain_data = mmap(NULL, SHMEM_SIZE_BLOCKCHAIN, PROT_READ | PROT_WRITE, MAP_SHARED, g_shmem_pool_fd, 0);
     if (g_shmem_blockchain_data == NULL) {
         c_logputs("Controller: Failed to allocate shared memory for blockchain.");
@@ -145,7 +134,12 @@ int c_ctrl_init() {
         c_logputs("Failed to create semaphores");
         return 0;
     }
-
+    mkfifo(FIFO_NAME, 0666);
+    g_pipe_validator = open(FIFO_NAME, O_CREAT | O_RDWR, 0666);
+    if (g_pipe_validator == -1) {
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
     return 1;
 }
 
@@ -244,7 +238,7 @@ void c_ctrl_cleanup() {
     sem_unlink(SEM_POOL_MUTEX);
     shm_unlink(SHMEM_PATH_POOL);
     shm_unlink(SHMEM_PATH_BLOCKCHAIN);
-
+    unlink(FIFO_NAME);
     c_cleanup();
 }
 

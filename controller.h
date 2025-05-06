@@ -1,11 +1,20 @@
 #ifndef _CONTROLLER_H_
 #define _CONTROLLER_H_
-
+#include <sys/mman.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <time.h>
+#include <assert.h>
+
 #include "transaction.h"
 
 /*=======================
@@ -21,6 +30,7 @@
 #define SHMEM_SIZE_POOL       sizeof(Transaction) * (g_pool_size+1)
 #define SHMEM_SIZE_BLOCK      sizeof(Transaction) * g_transactions_per_block
 #define SHMEM_SIZE_BLOCKCHAIN sizeof(Transaction)*  g_transactions_per_block * g_blockchain_blocks
+#define FIFO_NAME "VALIDATOR_INPUT"
 
 /* TODO: Replace sprintf with snprintf */
 #define c_logprintf(...)\
@@ -32,8 +42,8 @@
   ======================= */
 extern char _buf[512];
 extern FILE *g_logfile_fptr;
-extern pthread_mutex_t g_logfile_mutex; 
-
+extern pthread_mutex_t g_logfile_mutex;
+extern int g_pipe_validator;
 /* Configuration */
 extern unsigned int g_miners_max;                   // number of miners (number of threads in the miner process)
 extern unsigned int g_pool_size;                    // number of slots on the transaction pool

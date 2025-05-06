@@ -1,3 +1,3 @@
-[2025-05-06 20:27:29] Validator: Exited successfully!
-[2025-05-06 20:27:29] Statistics: Exited successfully!
-[2025-05-06 20:27:29] SIGNAL: SIGINT - Cleaning up...
+[2025-05-06 21:21:43] Statistics: Exited successfully!
+[2025-05-06 21:21:43] Validator: Exited successfully!
+[2025-05-06 21:21:43] SIGNAL: SIGINT - Cleaning up...
