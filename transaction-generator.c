@@ -12,6 +12,16 @@
 
 #include "transaction.h"  // has struct Transaction definition
 
+#define DEBUG
+#ifdef DEBUG
+int _macro_buf = 0;
+#define PRINT_SEM(NAME, sem)\
+    if (sem_getvalue(sem, &_macro_buf) == 0) {\
+        printf("Semaphore %s value: %d\n", NAME, _macro_buf);\
+    } else { perror("sem_getvalue failed"); }\
+
+#endif /* ifdef DEBUG */
+
 #define SEM_POOL_EMPTY          "/dei_pool_empty"
 #define SEM_POOL_FULL           "/dei_pool_full"
 #define SEM_POOL_MUTEX          "/dei_pool_mutex"
@@ -133,6 +143,11 @@ int main(int argc, char *argv[]) {
         temp = transaction_generate(reward);
         puts("[TxGen] Waiting...");
         sem_wait(g_sem_empty);
+
+        #ifdef DEBUG
+        PRINT_SEM("empty", g_sem_empty)
+        #endif
+
         sem_wait(g_sem_mutex);
         for (unsigned i = 0; i < pool_size ; i++) {
             if (pool_ptr[i].id_self == 0) {
@@ -141,6 +156,11 @@ int main(int argc, char *argv[]) {
                 break;
             }
         }
+
+        #ifdef DEBUG
+        PRINT_SEM("Full", g_sem_full)
+        #endif
+
         sem_post(g_sem_mutex);
         sem_post(g_sem_full);
         sleep_ms(time_ms);

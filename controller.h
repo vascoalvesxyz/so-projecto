@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <signal.h>
 #include "transaction.h"
 
 /*=======================

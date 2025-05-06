@@ -53,10 +53,6 @@ int  c_ctrl_init();
 int  c_ctrl_import_config(const char* path);
 void c_ctrl_cleanup();
 void c_ctrl_handle_sigint();
-/* Validator thread */
-void val_main();
-/* Statistics thread */
-void stat_main();
 
 /* FUNCTIONS */
 void c_logputs(const char* string) {
@@ -259,35 +255,6 @@ void c_ctrl_handle_sigint() {
     exit(EXIT_SUCCESS);
 }
 
-
-void val_main() {
-    void handle_signit() {
-        c_logputs("Validator: Exited successfully!\n");
-        c_cleanup();
-        exit(EXIT_SUCCESS);
-    }
-
-    signal(SIGINT, handle_signit);
-    while (1) {
-
-    }
-}
-
-
-void stat_main() {
-    //Gerar Estatisticas
-    // E escrever antes de acabar a simulação (Isto é a simulação acaba e enquanto fecha)
-    void handle_signit() {
-        c_logputs("Statistics: Exited successfully!\n");
-        c_cleanup();
-        exit(EXIT_SUCCESS);
-    }
-
-    signal(SIGINT, handle_signit);
-
-    while (1) { }
-}
-
 int main() {
 
     /* Import Config and Initialize */
@@ -316,7 +283,7 @@ int main() {
         c_logputs("Failed to start Statistics controller.");
         goto exit_fail;
     } else if (g_pid_stat == 0) {
-        stat_main();
+        c_stat_main();
     }
 
     /* Validator */
@@ -325,7 +292,7 @@ int main() {
         c_logputs("Failed to start validator.\n");
         goto exit_fail;
     } else if (g_pid_val == 0) {
-        val_main();
+        c_val_main();
     } 
 
     /* Statistics */

@@ -2,6 +2,8 @@
 #include <strings.h>
 #include <signal.h>
 #include <unistd.h>
+#include <errno.h>
+
 
 #include "controller.h"
 #include "transaction.h"
@@ -19,33 +21,54 @@ int *id_array;
 volatile sig_atomic_t shutdown = 0;
 volatile sig_atomic_t sigint_received = 0;
 
+
 void* miner_thread(void* id_ptr) {
-    // int pool_size = g_pool_size;
-    // Transaction *pool_ptr = g_shmem_pool_data; 
+    int pool_size = g_pool_size;
+    Transaction *pool_ptr = g_shmem_pool_data; 
 
     int id = *( (int*) id_ptr );
 
+
+
+
     while (shutdown == 0) {
-        printf("[Miner Thread %d] Waiting...\n", id);
 
-        sem_wait(g_sem_pool_full);
-        if (shutdown == 1)
-            break;
-        sem_wait(g_sem_pool_mutex);
-        if (shutdown == 1)
-            break;
+        if (sem_trywait(g_sem_pool_full) == 0) {
+            // Successfully decremented semaphore
+            printf("[Miner Thread %d] Waiting...\n", id);
 
-        puts("Pretending to mine");
-        // for (unsigned i = pool_size-1; i > 1 ; i--) {
-        //     /* TODO: Mine Transaction */
-        //     if (pool_ptr[i].id_self != 0) {
-        //         pool_ptr[i].id_self = 0;
-        //         printf("[Miner Thread %d] Mining transaction in slot: %d\n", id, i);
-        //         break;
-        //     }
-        // }
-        sem_post(g_sem_pool_mutex);
-        sem_post(g_sem_pool_empty);
+            #ifdef DEBUG
+            puts("[Miner controller] Finished waiting for pool full");
+            #endif
+            if (shutdown == 1)
+                break;
+
+            #ifdef DEBUG
+            puts("[Miner controller] Waiting for mutex");
+            #endif
+            sem_wait(g_sem_pool_mutex);
+            if (shutdown == 1)
+                break;
+
+            puts("Pretending to mine");
+            for (unsigned i = pool_size-1; i > 1 ; i--) {
+                /* TODO: Mine Transaction */
+                if (pool_ptr[i].id_self != 0) {
+                    pool_ptr[i].id_self = 0;
+                    printf("[Miner Thread %d] Mining transaction in slot: %d\n", id, i);
+                    break;
+                }
+            }
+
+            sem_post(g_sem_pool_mutex);
+            sem_post(g_sem_pool_empty);
+        } else if (errno == EAGAIN) {
+            sleep(1);
+        } else {
+            perror("sem_trywait failed");
+            break;
+        }
+
     }
 
     printf("[Miner Thread %d] Shutdown set to 0, exiting thread.\n", id);
