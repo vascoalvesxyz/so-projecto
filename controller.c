@@ -80,11 +80,8 @@ void c_logputs(const char* string) {
 void c_cleanup() {
 
     /* main controller closes the logfile */
-    if (g_logfile_fptr != NULL) {
-        pthread_mutex_lock(&g_logfile_mutex);
+    if (g_logfile_fptr != NULL)
         fclose(g_logfile_fptr);
-        pthread_mutex_unlock(&g_logfile_mutex);
-    }
 
     /* Every fork will have to close and unmap independently */
     if (g_sem_pool_empty != NULL) sem_close(g_sem_pool_empty);
@@ -235,7 +232,15 @@ int c_ctrl_import_config(const char* path) {
 }
 
 void c_ctrl_cleanup() {
-    c_cleanup();
+
+    /* Await Children Processes. */
+    kill(g_pid_stat, SIGINT);
+    kill(g_pid_val,  SIGINT);
+    kill(g_pid_mc,   SIGINT);
+
+    pid_t killed;
+    do { killed = wait(NULL); }
+    while (killed != -1);
 
     /* only controller can unlink */
     sem_unlink(SEM_POOL_EMPTY);
@@ -244,16 +249,7 @@ void c_ctrl_cleanup() {
     shm_unlink(SHMEM_PATH_POOL);
     shm_unlink(SHMEM_PATH_BLOCKCHAIN);
 
-    /* Await Children Processes. */
-    kill(g_pid_stat, SIGINT);
-    kill(g_pid_val,  SIGINT);
-    kill(g_pid_mc,   SIGINT);
-
-    pid_t killed;
-    do {
-        killed = wait(NULL);
-    }
-    while (killed != -1);
+    c_cleanup();
 }
 
 void c_ctrl_handle_sigint() {

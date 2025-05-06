@@ -1,75 +1,137 @@
 //Vasco Alves 2022228207 Joao Neto 2023234004
 #include <strings.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include "controller.h"
 #include "transaction.h"
 
+#define DEBUG
+
 typedef struct MinerThreadArgs {
-    pthread_mutex_t *mutex;
     int id;
 } MinerThreadArgs;
 
 unsigned int i = 0, created_threads = 0;
-pthread_mutex_t miner_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 pthread_t *mc_threads;
-MinerThreadArgs *mc_args;
+int *id_array;
 
-void* miner_thread(void* mc_args_ptr) {
-    int pool_size = g_pool_size;
-    Transaction *pool_ptr = g_shmem_pool_data; 
+volatile sig_atomic_t shutdown = 0;
+volatile sig_atomic_t sigint_received = 0;
 
-    MinerThreadArgs mc_args = *( (MinerThreadArgs*) mc_args_ptr );
-    while (1) {
-        c_logprintf("[Miner Thread %d] Waiting...\n", mc_args.id);
+void* miner_thread(void* id_ptr) {
+    // int pool_size = g_pool_size;
+    // Transaction *pool_ptr = g_shmem_pool_data; 
+
+    int id = *( (int*) id_ptr );
+
+    while (shutdown == 0) {
+        printf("[Miner Thread %d] Waiting...\n", id);
 
         sem_wait(g_sem_pool_full);
+        if (shutdown == 1)
+            break;
         sem_wait(g_sem_pool_mutex);
-        for (unsigned i = pool_size-1; i > 1 ; i--) {
-            /* TODO: Mine Transaction */
-            if (pool_ptr[i].id_self != 0) {
-                pool_ptr[i].id_self = 0;
-                c_logprintf("[Miner Thread %d] Mining transaction in slot: %d\n", mc_args.id, i);
-                break;
-            }
-        }
+        if (shutdown == 1)
+            break;
+
+        puts("Pretending to mine");
+        // for (unsigned i = pool_size-1; i > 1 ; i--) {
+        //     /* TODO: Mine Transaction */
+        //     if (pool_ptr[i].id_self != 0) {
+        //         pool_ptr[i].id_self = 0;
+        //         printf("[Miner Thread %d] Mining transaction in slot: %d\n", id, i);
+        //         break;
+        //     }
+        // }
         sem_post(g_sem_pool_mutex);
         sem_post(g_sem_pool_empty);
     }
 
+    printf("[Miner Thread %d] Shutdown set to 0, exiting thread.\n", id);
+    // mc_threads[id-1] = NULL; // ?
     pthread_exit(NULL);
 }
 
 void mc_cleanup() {
-    /* wait for miner threads to be done */
-    for(i = 0; i < created_threads; i++){
-        pthread_join(mc_threads[i], NULL);
+    shutdown = 1; // Ensure threads exit
+    //
+    #ifdef DEBUG
+    puts("[Miner controller] Sending");
+    #endif
+
+    for (i = 0; i < created_threads; i++) {
+        sem_post(g_sem_pool_full); // Unblock sem_wait
+        sem_post(g_sem_pool_empty);
     }
-    pthread_mutex_destroy(&miner_mutex);
+
+    #ifdef DEBUG
+    puts("[Miner controller] Joining threads");
+    #endif
+
+    // Clean up threads
+    for (unsigned i = 0; i < created_threads; i++) {
+        if (mc_threads[i]) {
+            pthread_join(mc_threads[i], NULL);
+        }
+    }
+
+    #ifdef DEBUG
+    puts("[Miner controller] Freeing resources");
+    #endif
 
     free(mc_threads);
-    free(mc_args);
+    free(id_array);
+    c_cleanup(); // Cleanup semaphores/shared memory
+}
 
-    c_logputs("Miner Controller: Exited successfully!\n");
-    c_cleanup();
-    exit(EXIT_SUCCESS);
+void mc_handle_sigint(int sig) {
+    if (sig != SIGINT) return;
+    shutdown = 1; // Signal threads to exit
+    sigint_received = 1; // Signal main thread to exit
 }
 
 /* Function Declarations */
 void c_mc_main(unsigned int miners_max) {
 
-    mc_threads = malloc(sizeof(pthread_t) * miners_max );
-    mc_args = malloc(sizeof(struct MinerThreadArgs) * miners_max );
+    mc_threads  = malloc(sizeof(pthread_t) * miners_max );
+    id_array    = malloc(sizeof(int) * miners_max );
 
     /* Create Miner Threads */
-    for (i = 0; i < miners_max; i++, created_threads++) {
-        mc_args[i] = (MinerThreadArgs) {&miner_mutex, i+1};
-        puts("Creating thread");
-        pthread_create(&mc_threads[i], NULL, miner_thread, (void*) &mc_args[i]);
+    for (i = 0; i < miners_max; i++) {
+        id_array[i] = i+1;
+        if (pthread_create(&mc_threads[i], NULL, miner_thread, &id_array[i]) != 0) {
+            perror("pthread_create failed");
+            break; // Stop creating threads on failure
+        }
+        created_threads++;
     }
 
-    signal(SIGINT, mc_cleanup);
+    // Set up signal handler
+    struct sigaction sa;
+    sa.sa_handler = mc_handle_sigint;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
 
-    mc_cleanup(0);
+    #ifdef DEBUG
+    puts("[Miner controller] Entering main loop");
+    #endif
+
+    // Wait for shutdown signal
+    while (!sigint_received) {
+        pause();
+    }
+
+    #ifdef DEBUG
+    puts("[Miner controller] Starting cleanup");
+    #endif
+
+    // Perform final cleanup
+    mc_cleanup();
+
+    #ifdef DEBUG
+    puts("[Miner controller] Exit complete");
+    #endif
+    exit(0);
 }
