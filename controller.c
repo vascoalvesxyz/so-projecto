@@ -12,8 +12,7 @@ Transaction *g_shmem_pool_data = NULL;
 int g_shmem_blockchain_fd = -1;
 Transaction *g_shmem_blockchain_data = NULL;
 
-int g_pipe_validator = -1; /* Configuration Variables */
-
+int pipe_validator_fd = -1;
 unsigned int g_miners_max = 0;                   // number of miners (number of threads in the miner process)
 unsigned int g_pool_size = 0;                    // number of slots on the transaction pool
 unsigned int g_transactions_per_block = 0;       // number of transactions per block (will affect block size)
@@ -62,8 +61,7 @@ void c_cleanup() {
     /* main controller closes the logfile */
     if (g_logfile_fptr != NULL)
         fclose(g_logfile_fptr);
-    if(g_pipe_validator > 0)
-        close(g_pipe_validator);
+
     /* Every fork will have to close and unmap independently */
     if (g_sem_pool_empty != NULL) sem_close(g_sem_pool_empty);
     if (g_sem_pool_full != NULL) sem_close(g_sem_pool_full);
@@ -131,15 +129,13 @@ if (ftruncate(g_shmem_blockchain_fd, SHMEM_SIZE_BLOCKCHAIN) == -1) {
     sem_init(g_sem_pool_mutex, 0, 1);
 
     if (g_sem_pool_empty == SEM_FAILED || g_sem_pool_full == SEM_FAILED || g_sem_pool_mutex == SEM_FAILED) {
-        c_logputs("Failed to create semaphores");
+        c_logputs("[Controller] Failed to create semaphores");
         return 0;
     }
-    mkfifo(FIFO_NAME, 0666);
-    g_pipe_validator = open(FIFO_NAME, O_CREAT | O_RDWR, 0666);
-    if (g_pipe_validator == -1) {
-        perror("open");
-        exit(EXIT_FAILURE);
-    }
+
+    /* Create pipe */
+    mkfifo(PIPE_VALIDATOR, 0666);
+
     return 1;
 }
 
@@ -238,7 +234,7 @@ void c_ctrl_cleanup() {
     sem_unlink(SEM_POOL_MUTEX);
     shm_unlink(SHMEM_PATH_POOL);
     shm_unlink(SHMEM_PATH_BLOCKCHAIN);
-    unlink(FIFO_NAME);
+    unlink(PIPE_VALIDATOR);
     c_cleanup();
 }
 
@@ -270,6 +266,15 @@ int main() {
         c_mc_main(g_miners_max);
     } 
 
+    /* Validator */
+    g_pid_val = fork();
+    if (g_pid_val < 0) {
+        c_logputs("Failed to start validator.\n");
+        goto exit_fail;
+    } else if (g_pid_val == 0) {
+        c_val_main();
+    } 
+
     /* Statistics */
     puts("Starting statistics!");
     g_pid_stat = fork();
@@ -280,14 +285,6 @@ int main() {
         c_stat_main();
     }
 
-    /* Validator */
-    g_pid_val = fork();
-    if (g_pid_val < 0) {
-        c_logputs("Failed to start validator.\n");
-        goto exit_fail;
-    } else if (g_pid_val == 0) {
-        c_val_main();
-    } 
 
     /* Statistics */
     signal(SIGINT, c_ctrl_handle_sigint);

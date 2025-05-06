@@ -18,9 +18,8 @@ unsigned int i = 0, created_threads = 0;
 pthread_t *mc_threads;
 int *id_array;
 
-volatile sig_atomic_t shutdown = 0;
-volatile sig_atomic_t sigint_received = 0;
-
+_Atomic sig_atomic_t shutdown = 0;
+_Atomic sig_atomic_t sigint_received = 0;
 
 void* miner_thread(void* id_ptr) {
     int pool_size = g_pool_size;
@@ -28,9 +27,7 @@ void* miner_thread(void* id_ptr) {
 
     int id = *( (int*) id_ptr );
 
-
-
-
+    Transaction transaction_to_write;
     while (shutdown == 0) {
 
         if (sem_trywait(g_sem_pool_full) == 0) {
@@ -50,12 +47,15 @@ void* miner_thread(void* id_ptr) {
             if (shutdown == 1)
                 break;
 
-            puts("Pretending to mine");
             for (unsigned i = pool_size-1; i > 1 ; i--) {
                 /* TODO: Mine Transaction */
                 if (pool_ptr[i].id_self != 0) {
                     pool_ptr[i].id_self = 0;
                     printf("[Miner Thread %d] Mining transaction in slot: %d\n", id, i);
+
+                    transaction_to_write = pool_ptr[i];
+                    write(pipe_validator_fd, (void*) &transaction_to_write, sizeof(Transaction));
+
                     break;
                 }
             }
@@ -103,6 +103,9 @@ void mc_cleanup() {
     puts("[Miner controller] Freeing resources");
     #endif
 
+    if (pipe_validator_fd >= 0)
+        close(pipe_validator_fd);
+
     free(mc_threads);
     free(id_array);
     c_cleanup(); // Cleanup semaphores/shared memory
@@ -119,6 +122,8 @@ void c_mc_main(unsigned int miners_max) {
 
     mc_threads  = malloc(sizeof(pthread_t) * miners_max );
     id_array    = malloc(sizeof(int) * miners_max );
+
+    pipe_validator_fd = open(PIPE_VALIDATOR, O_WRONLY);
 
     /* Create Miner Threads */
     for (i = 0; i < miners_max; i++) {

@@ -4,7 +4,7 @@ void c_stat_main() {
     //Gerar Estatisticas
     // E escrever antes de acabar a simulação (Isto é a simulação acaba e enquanto fecha)
     void handle_signit() {
-        c_logputs("Statistics: Exited successfully!\n");
+        puts("STATISTICS: EXITED SUCCESSFULLY!\n");
         c_cleanup();
         exit(EXIT_SUCCESS);
     }
