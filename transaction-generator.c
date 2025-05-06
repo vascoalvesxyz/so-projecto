@@ -6,13 +6,16 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <signal.h>
-
 #include <stdio.h>
 #include <unistd.h>
+#include <time.h>
 
-
-#include "controller.h"   // has semaphore macros
 #include "transaction.h"  // has struct Transaction definition
+
+#define SEM_POOL_EMPTY          "/dei_pool_empty"
+#define SEM_POOL_FULL           "/dei_pool_full"
+#define SEM_POOL_MUTEX          "/dei_pool_mutex"
+#define SHMEM_PATH_POOL         "/dei_transaction_pool"
 
 /* Transaction Generator (TxGen). A process executed by the user that produces transactions at 
  * specified intervals and writes them to a Transaction Pool (located in shared memory). Several 

@@ -18,34 +18,29 @@
 #include "transaction.h"
 #include "controller.h"
 
-#define FPATH_CONFIG "config.cfg"
-
-#define SHMEM_SIZE_POOL       sizeof(Transaction) * (g_pool_size+1)
-#define SHMEM_SIZE_BLOCK      sizeof(Transaction) * g_transactions_per_block
-#define SHMEM_SIZE_BLOCKCHAIN sizeof(Transaction)*  g_transactions_per_block * g_blockchain_blocks
-
-/* Shared Memory */
-static int g_shmem_pool_fd = -1; 
-static Transaction *g_shmem_pool_data = NULL;
-static int g_shmem_blockchain_fd = -1;
-static Transaction *g_shmem_blockchain_data = NULL;
-
 /* Process that we will generate */
 static pid_t g_pid_mc   = -1; // miner controller
 static pid_t g_pid_stat = -1; // statistics
 static pid_t g_pid_val  = -1; // transaction validator
 
-/* Configuration Variables */
-static unsigned int g_miners_max = 0;                   // number of miners (number of threads in the miner process)
-static unsigned int g_pool_size = 0;                    // number of slots on the transaction pool
-static unsigned int g_transactions_per_block = 0;       // number of transactions per block (will affect block size)
-static unsigned int g_blockchain_blocks = 0;            // maximum number of blocks that can be saved in the
-static unsigned int g_transaction_pool_size = 10000 ;   // Transactions in POOL
+/* Shared Memory */
+int g_shmem_pool_fd = -1; 
+Transaction *g_shmem_pool_data = NULL;
+int g_shmem_blockchain_fd = -1;
+Transaction *g_shmem_blockchain_data = NULL;
 
-/* Log Related Variables (declared external in controller.h) */
+/* Configuration Variables */
+unsigned int g_miners_max = 0;                   // number of miners (number of threads in the miner process)
+unsigned int g_pool_size = 0;                    // number of slots on the transaction pool
+unsigned int g_transactions_per_block = 0;       // number of transactions per block (will affect block size)
+unsigned int g_blockchain_blocks = 0;            // maximum number of blocks that can be saved in the
+unsigned int g_transaction_pool_size = 10000 ;   // Transactions in POOL
+
+/* Declared external in controller.h */
 char _buf[512];
 FILE *g_logfile_fptr = NULL;
 pthread_mutex_t g_logfile_mutex = PTHREAD_MUTEX_INITIALIZER; 
+
 sem_t *g_sem_pool_empty = NULL;
 sem_t *g_sem_pool_full = NULL;
 sem_t *g_sem_pool_mutex = NULL;
@@ -309,6 +304,7 @@ int main() {
     }
 
     /* Miner Controller */
+    puts("Starting miner controller!");
     g_pid_mc = fork();
     if (g_pid_mc < 0) {
         c_logputs("Failed to start miner controller.\n");
@@ -318,6 +314,7 @@ int main() {
     } 
 
     /* Statistics */
+    puts("Starting statistics!");
     g_pid_stat = fork();
     if (g_pid_stat < 0) {
         c_logputs("Failed to start Statistics controller.");

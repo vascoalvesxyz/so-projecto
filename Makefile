@@ -10,5 +10,5 @@ install:
 	${CC} ${FLAGS} transaction-generator.c -o transaction-generator ${LINKS}
 
 debug:
-	${CC} ${DEBUG} ${LINKS} ${FLAGS} controller.c -o controller
-	${CC} ${DEBUG} ${FLAGS} transaction-generator.c -o transaction-generator
+	${CC} ${DEBUG} ${FLAGS} controller_miner_controller.c controller.c -o controller ${LINKS}
+	${CC} ${DEBUG} ${FLAGS} transaction-generator.c -o transaction-generator ${LINKS}
