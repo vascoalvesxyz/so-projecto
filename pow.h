@@ -9,8 +9,8 @@
 #define INITIAL_HASH \
   "00006a8e76f31ba74e21a092cca1015a418c9d5f4375e7a4fec676e1d2ec1436"
 
-#ifndef DEBUG
-#define DEBUG 0
+#ifdef DEBUG
+#define _POW_DEBUG 0
 #endif
 
 /* Definition of Difficulty Levels */

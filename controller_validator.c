@@ -36,10 +36,11 @@ void c_val_main() {
 
     pipe_validator_fd = open(PIPE_VALIDATOR, O_RDONLY);
 
-    Transaction transaction_recieved;
+    TransactionPool transaction_recieved;
 
     while (1) {
-        ssize_t count = read(pipe_validator_fd, (char* )&transaction_recieved, sizeof(Transaction));
+        ssize_t count = read(pipe_validator_fd, (char* )&transaction_recieved, sizeof(TransactionPool));
+
 
         if (count < 0) {
             puts("READ ERROR");
@@ -47,7 +48,10 @@ void c_val_main() {
         } else if (count == 0) {
             continue;
         }
-        printf("[Validator] RECIEVED TRANSACTION ID=%d\n", transaction_recieved.reward);
+        printf("[Validator] RECEIVED TRANSACTION ID=");
+        for (int i = 0; i < TX_ID_LEN; i++) {
+            printf("%02x", transaction_recieved.tx.tx_id[i]);
+        }
     }
 
     val_exit(0);

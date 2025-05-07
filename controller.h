@@ -33,6 +33,14 @@
         sprintf(_buf, __VA_ARGS__);\
         c_logputs(_buf)
 
+/* Print semaphore macro (debug only) */
+#ifdef DEBUG
+#define PRINT_SEM(NAME, sem)\
+    if (sem_getvalue(sem, &_macro_buf) == 0) {\
+        printf("[DEBUG] [TxGen] SEMAPHORE %s = %d\n", NAME, _macro_buf);\
+    } else { perror("sem_getvalue failed"); }
+#endif /* ifdef DEBUG */
+
 typedef struct TransactionPool{
   Transaction tx;
   unsigned int age;

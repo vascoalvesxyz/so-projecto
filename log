@@ -1,41 +1,41 @@
-==251235== Memcheck, a memory error detector
-==251235== Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.
-==251235== Using Valgrind-3.25.0 and LibVEX; rerun with -h for copyright info
-==251235== Command: ./controller
-==251235== 
-==251252== 
-==251252== HEAP SUMMARY:
-==251252==     in use at exit: 0 bytes in 0 blocks
-==251252==   total heap usage: 10 allocs, 10 frees, 6,279 bytes allocated
-==251252== 
-==251252== All heap blocks were freed -- no leaks are possible
-==251252== 
-==251252== For lists of detected and suppressed errors, rerun with: -s
-==251252== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
-==251253== 
-==251253== HEAP SUMMARY:
-==251253==     in use at exit: 0 bytes in 0 blocks
-==251253==   total heap usage: 10 allocs, 10 frees, 6,279 bytes allocated
-==251253== 
-==251253== All heap blocks were freed -- no leaks are possible
-==251253== 
-==251253== For lists of detected and suppressed errors, rerun with: -s
-==251253== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
-==251251== 
-==251251== HEAP SUMMARY:
-==251251==     in use at exit: 0 bytes in 0 blocks
-==251251==   total heap usage: 24 allocs, 24 frees, 11,967 bytes allocated
-==251251== 
-==251251== All heap blocks were freed -- no leaks are possible
-==251251== 
-==251251== For lists of detected and suppressed errors, rerun with: -s
-==251251== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
-==251235== 
-==251235== HEAP SUMMARY:
-==251235==     in use at exit: 0 bytes in 0 blocks
-==251235==   total heap usage: 21 allocs, 21 frees, 17,263 bytes allocated
-==251235== 
-==251235== All heap blocks were freed -- no leaks are possible
-==251235== 
-==251235== For lists of detected and suppressed errors, rerun with: -s
-==251235== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==710108== Memcheck, a memory error detector
+==710108== Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.
+==710108== Using Valgrind-3.25.0 and LibVEX; rerun with -h for copyright info
+==710108== Command: ./controller
+==710108== 
+==710123== 
+==710123== HEAP SUMMARY:
+==710123==     in use at exit: 0 bytes in 0 blocks
+==710123==   total heap usage: 10 allocs, 10 frees, 6,279 bytes allocated
+==710123== 
+==710123== All heap blocks were freed -- no leaks are possible
+==710123== 
+==710123== For lists of detected and suppressed errors, rerun with: -s
+==710123== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==710122== 
+==710122== HEAP SUMMARY:
+==710122==     in use at exit: 0 bytes in 0 blocks
+==710122==   total heap usage: 10 allocs, 10 frees, 6,279 bytes allocated
+==710122== 
+==710122== All heap blocks were freed -- no leaks are possible
+==710122== 
+==710122== For lists of detected and suppressed errors, rerun with: -s
+==710122== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==710121== 
+==710121== HEAP SUMMARY:
+==710121==     in use at exit: 0 bytes in 0 blocks
+==710121==   total heap usage: 24 allocs, 24 frees, 11,967 bytes allocated
+==710121== 
+==710121== All heap blocks were freed -- no leaks are possible
+==710121== 
+==710121== For lists of detected and suppressed errors, rerun with: -s
+==710121== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==710108== 
+==710108== HEAP SUMMARY:
+==710108==     in use at exit: 0 bytes in 0 blocks
+==710108==   total heap usage: 21 allocs, 21 frees, 17,263 bytes allocated
+==710108== 
+==710108== All heap blocks were freed -- no leaks are possible
+==710108== 
+==710108== For lists of detected and suppressed errors, rerun with: -s
+==710108== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)

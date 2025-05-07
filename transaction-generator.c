@@ -10,15 +10,11 @@
 #include <unistd.h>
 #include <time.h>
 
+#include <openssl/sha.h>
+
 #include "controller.h"  // has struct Transaction definition
-
 #ifdef DEBUG
-int _macro_buf = 0;
-#define PRINT_SEM(NAME, sem)\
-    if (sem_getvalue(sem, &_macro_buf) == 0) {\
-        printf("Semaphore %s value: %d\n", NAME, _macro_buf);\
-    } else { perror("sem_getvalue failed"); }\
-
+int _macro_buf;
 #endif /* ifdef DEBUG */
 
 #define SEM_POOL_EMPTY          "/dei_pool_empty"
@@ -39,6 +35,9 @@ sem_t *g_sem_empty;
 sem_t *g_sem_full; 
 sem_t *g_sem_mutex;
 
+int transaction_n = 0;
+pid_t my_pid;
+
 /* Helper par dormir em millisegundos */
 static inline void sleep_ms(int milliseconds) {
     struct timespec ts;
@@ -56,7 +55,7 @@ int t_init() {
     } 
 
     TransactionPool info;
-    if (read(fd, &info, sizeof(Transaction)) < 0) {
+    if (read(fd, &info, sizeof(TransactionPool)) < 0) {
             return -1;
     }
 
@@ -87,6 +86,8 @@ int t_init() {
     g_sem_full = sem_full;
     g_sem_empty = sem_empty;
     g_sem_mutex = sem_mutex;
+
+    my_pid = getpid();
     return 0;
 }
 
@@ -107,10 +108,17 @@ void handle_sigint() {
 }
 
 
-//Transaction transaction_generate(int reward) {
-    /* id_self, id_sender, id_reciever, timestamp, reward, value */
- //   return (TransactionPool) {3, 4, reward};
-//}
+Transaction transaction_generate(int reward) {
+    /* tx_id, reward, value, timestamp */
+    Transaction new_transaction;
+    new_transaction.reward = reward;
+    new_transaction.value = rand();
+    new_transaction.timestamp = time(NULL);
+
+    uint32_t input = my_pid+transaction_n;
+    SHA256( (void*) &input, sizeof(uint32_t), (unsigned char*) &new_transaction.tx_id);
+    return new_transaction;
+}
 
 int main(int argc, char *argv[]) {
 
@@ -132,35 +140,36 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    signal(SIGINT, handle_sigint);
+    signal(SIGINT,  handle_sigint);
 
+    size_t pool_size = ( g_pool_size_read/sizeof(TransactionPool) ) - 1; // subtract first transaction
     TransactionPool *pool_ptr = g_pool_ptr + 1; // ignore first transaction
-    size_t pool_size = g_pool_size_read/sizeof(Transaction) - 1; // subtract first transaction
+    //
 
-    //TransactionPool temp;
     while (1) {
-       // temp = transaction_generate(reward);
         puts("[TxGen] Waiting...");
-        sem_wait(g_sem_empty);
 
+        sem_wait(g_sem_empty);
         #ifdef DEBUG
-        PRINT_SEM("empty", g_sem_empty)
+        PRINT_SEM("EMPTY", g_sem_empty)
         #endif
 
         sem_wait(g_sem_mutex);
         for (unsigned i = 0; i < pool_size ; i++) {
-            if (pool_ptr[i].age == 0) {
-                //pool_ptr[i] = temp;
+            /* Find empty transaction */
+            if (pool_ptr[i].empty == 0) {
+                TransactionPool new_transaction = (TransactionPool) {transaction_generate(reward), 0, 1};
+                pool_ptr[i] = new_transaction;
                 printf("[TxGen] Inserting transaction in slot: %d\n", i);
+                transaction_n++; // increment transaction counter
                 break;
             }
         }
+        sem_post(g_sem_mutex);
 
         #ifdef DEBUG
-        PRINT_SEM("Full", g_sem_full)
+        PRINT_SEM("FULL", g_sem_full)
         #endif
-
-        sem_post(g_sem_mutex);
         sem_post(g_sem_full);
         sleep_ms(time_ms);
 

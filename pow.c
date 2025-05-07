@@ -146,7 +146,7 @@ PoWResult proof_of_work(TransactionBlock *block) {
       result.error = 1;
       return result;
     }
-    if (DEBUG && block->nonce % 100000 == 0)
+    if (_POW_DEBUG && block->nonce % 100000 == 0)
       printf("Nounce %d\n", block->nonce);
     result.operations++;
   }

@@ -33,31 +33,32 @@ void* miner_thread(void* id_ptr) {
             printf("[Miner Thread %d] Waiting...\n", id);
 
             #ifdef DEBUG
-            puts("[Miner controller] Finished waiting for pool full");
+            puts("[DEBUG] [Miner controller] Finished waiting for pool full");
             #endif
+
             if (shutdown == 1)
                 break;
 
             #ifdef DEBUG
-            puts("[Miner controller] Waiting for mutex");
+            puts("[DEBUG] [Miner controller] Waiting for mutex");
             #endif
+
             sem_wait(g_sem_pool_mutex);
-            if (shutdown == 1)
-                break;
+            if (shutdown == 1) break;
 
             for (unsigned i = pool_size-1; i > 1 ; i--) {
                 /* TODO: Mine Transaction */
-                if (pool_ptr[i].empty != 0) {
-                    pool_ptr[i].empty = 0;
+                if (pool_ptr[i].empty == 1) {
                     printf("[Miner Thread %d] Mining transaction in slot: %d\n", id, i);
 
                     transaction_to_write = pool_ptr[i];
                     if(write(pipe_validator_fd, (void*) &transaction_to_write, sizeof(TransactionPool))<0){
-            printf("Writing in pipe gone wrong\n");
-            break;
-          }
+                        printf("Writing in pipe gone wrong\n");
+                        break;
+                    }
 
-                    break;
+                    pool_ptr[i].empty = 0;
+                    break; 
                 }
             }
 
@@ -79,19 +80,19 @@ void* miner_thread(void* id_ptr) {
 
 void mc_cleanup() {
     shutdown = 1; // Ensure threads exit
-    //
-    #ifdef DEBUG
-    puts("[Miner controller] Sending");
-    #endif
+
+#ifdef DEBUG
+    puts("[DEBUG] [Miner controller] Sending shutdown signal");
+#endif
 
     for (i = 0; i < created_threads; i++) {
         sem_post(g_sem_pool_full); // Unblock sem_wait
         sem_post(g_sem_pool_empty);
     }
 
-    #ifdef DEBUG
-    puts("[Miner controller] Joining threads");
-    #endif
+#ifdef DEBUG
+    puts("[DEBUG] [Miner controller] Joining threads.");
+#endif
 
     // Clean up threads
     for (unsigned i = 0; i < created_threads; i++) {
@@ -100,9 +101,9 @@ void mc_cleanup() {
         }
     }
 
-    #ifdef DEBUG
-    puts("[Miner controller] Freeing resources");
-    #endif
+#ifdef DEBUG
+    puts("[DEBUG] [Miner controller] Freeing resources");
+#endif
 
     if (pipe_validator_fd >= 0)
         close(pipe_validator_fd);
@@ -116,6 +117,9 @@ void mc_handle_sigint(int sig) {
     if (sig != SIGINT) return;
     shutdown = 1; // Signal threads to exit
     sigint_received = 1; // Signal main thread to exit
+#ifdef DEBUG
+    puts("[DEBUG] [Miner controller] SIGINT recieved");
+#endif
 }
 
 /* Function Declarations */
@@ -144,7 +148,7 @@ void c_mc_main(unsigned int miners_max) {
     sigaction(SIGINT, &sa, NULL);
 
     #ifdef DEBUG
-    puts("[Miner controller] Entering main loop");
+    puts("[DEBUG] [Miner controller] Entering main loop");
     #endif
 
     // Wait for shutdown signal
@@ -153,14 +157,13 @@ void c_mc_main(unsigned int miners_max) {
     }
 
     #ifdef DEBUG
-    puts("[Miner controller] Starting cleanup");
+    puts("[DEBUG] [Miner controller] Starting cleanup");
     #endif
 
-    // Perform final cleanup
     mc_cleanup();
 
     #ifdef DEBUG
-    puts("[Miner controller] Exit complete");
+    puts("[DEBUG] [Miner controller] Exit complete");
     #endif
     exit(0);
 }

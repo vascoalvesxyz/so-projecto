@@ -1,7 +1,12 @@
-#include "controller.h"
-#include <string.h>
 //Vasco Alves 2022228207
 //Joao Neto 2023234004
+#include <string.h>
+#include "controller.h"
+
+#ifdef DEBUG
+int _macro_buf;
+#endif /* ifdef DEBUG */
+
 /* Process that we will generate */
 static pid_t g_pid_mc   = -1; // miner controller
 static pid_t g_pid_stat = -1; // statistics
