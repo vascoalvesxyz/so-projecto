@@ -1,13 +1,25 @@
+#include "controller.h"
+#include <string.h>
+#include <mqueue.h> 
+
 //Vasco Alves 2022228207
 //Joao Neto 2023234004
-#include <string.h>
-#include "controller.h"
 
 #ifdef DEBUG
 int _macro_buf;
 #endif /* ifdef DEBUG */
 
 /* Process that we will generate */
+#define QUEUE_NAME "/MinerInfo"
+typedef struct Miner_block_info{
+      
+  char  miner_hash[HASH_SIZE]; // Hash of the previous block
+  int valid_blocks;
+  int invalid_blocks;
+  time_t timestamp;                     // Time when block was created
+  int total_blocks;
+}Miner_block_info;
+
 static pid_t g_pid_mc   = -1; // miner controller
 static pid_t g_pid_stat = -1; // statistics
 static pid_t g_pid_val  = -1; // transaction validator
@@ -33,7 +45,7 @@ pthread_mutex_t g_logfile_mutex = PTHREAD_MUTEX_INITIALIZER;
 sem_t *g_sem_pool_empty = NULL;
 sem_t *g_sem_pool_full = NULL;
 sem_t *g_sem_pool_mutex = NULL;
-
+mqd_t StatsQueue = 0;
 /* FUNCTIONS DELCARATION */
 void c_logputs(const char* string);
 void c_cleanup();
@@ -81,7 +93,11 @@ void c_cleanup() {
     if (g_shmem_blockchain_fd > -1) 
         close(g_shmem_blockchain_fd);
     if (g_shmem_blockchain_data != NULL && g_shmem_blockchain_data != MAP_FAILED)
-        munmap(g_shmem_blockchain_data,SHMEM_SIZE_BLOCKCHAIN); 
+        munmap(g_shmem_blockchain_data,SHMEM_SIZE_BLOCKCHAIN);
+    
+    if(mq_close(StatsQueue)== -1){
+      perror("mq_close");
+  }
 }
 
 int c_ctrl_init() {
@@ -138,10 +154,20 @@ if (ftruncate(g_shmem_blockchain_fd, SHMEM_SIZE_BLOCKCHAIN) == -1) {
         c_logputs("[Controller] Failed to create semaphores");
         return 0;
     }
-
+    struct mq_attr sets = {
+        .mq_flags = 0,
+        .mq_maxmsg = 10,
+        .mq_msgsize = sizeof(Miner_block_info),
+        .mq_curmsgs = 0
+    };
+    StatsQueue = mq_open(QUEUE_NAME, O_CREAT | O_RDWR, 0666, &sets);
+    if (StatsQueue == (mqd_t)-1) {
+        perror("Queue_open");
+        exit(1);
+    }
     /* Create pipe */
     mkfifo(PIPE_VALIDATOR, 0666);
-
+    
     return 1;
 }
 
@@ -233,7 +259,7 @@ void c_ctrl_cleanup() {
     pid_t killed;
     do { killed = wait(NULL); }
     while (killed != -1);
-
+    mq_unlink(QUEUE_NAME);
     /* only controller can unlink */
     sem_unlink(SEM_POOL_EMPTY);
     sem_unlink(SEM_POOL_FULL);

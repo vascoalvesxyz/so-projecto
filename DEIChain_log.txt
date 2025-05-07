@@ -1,1 +1,4 @@
+<<<<<<< HEAD
 [2025-05-07 23:10:55] SIGNAL: SIGINT - Cleaning up...
+=======
+>>>>>>> 0b998b409ba8a2333807e6dc1e5a2fdf6397b2aa
