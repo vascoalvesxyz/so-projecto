@@ -47,7 +47,7 @@ void c_val_main() {
         } else if (count == 0) {
             continue;
         }
-        printf("[Validator] RECIEVED TRANSACTION ID=%d\n", transaction_recieved.id_self);
+        printf("[Validator] RECIEVED TRANSACTION ID=%d\n", transaction_recieved.reward);
     }
 
     val_exit(0);

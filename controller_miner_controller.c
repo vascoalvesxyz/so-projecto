@@ -6,9 +6,7 @@
 
 
 #include "controller.h"
-#include "transaction.h"
 
-#define DEBUG
 
 typedef struct MinerThreadArgs {
     int id;
@@ -23,11 +21,11 @@ _Atomic sig_atomic_t sigint_received = 0;
 
 void* miner_thread(void* id_ptr) {
     int pool_size = g_pool_size;
-    Transaction *pool_ptr = g_shmem_pool_data; 
+    TransactionPool *pool_ptr = g_shmem_pool_data; 
 
     int id = *( (int*) id_ptr );
 
-    Transaction transaction_to_write;
+    TransactionPool transaction_to_write;
     while (shutdown == 0) {
 
         if (sem_trywait(g_sem_pool_full) == 0) {
@@ -49,12 +47,12 @@ void* miner_thread(void* id_ptr) {
 
             for (unsigned i = pool_size-1; i > 1 ; i--) {
                 /* TODO: Mine Transaction */
-                if (pool_ptr[i].id_self != 0) {
-                    pool_ptr[i].id_self = 0;
+                if (pool_ptr[i].empty != 0) {
+                    pool_ptr[i].empty = 0;
                     printf("[Miner Thread %d] Mining transaction in slot: %d\n", id, i);
 
                     transaction_to_write = pool_ptr[i];
-                    if(write(pipe_validator_fd, (void*) &transaction_to_write, sizeof(Transaction))<0){
+                    if(write(pipe_validator_fd, (void*) &transaction_to_write, sizeof(TransactionPool))<0){
             printf("Writing in pipe gone wrong\n");
             break;
           }

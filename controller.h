@@ -4,18 +4,14 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>
-#include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <time.h>
 #include <assert.h>
+#include "pow.h"
 
-#include "transaction.h"
 
 /*=======================
           MACROS  
@@ -36,6 +32,12 @@
 #define c_logprintf(...)\
         sprintf(_buf, __VA_ARGS__);\
         c_logputs(_buf)
+
+typedef struct TransactionPool{
+  Transaction tx;
+  unsigned int age;
+  int empty;
+}TransactionPool;
 
 /*=======================
      GLOBAL VARIABLES  
@@ -59,8 +61,8 @@ extern sem_t *g_sem_pool_full;  // transaction pool is full
 extern sem_t *g_sem_pool_mutex; // transaction pool mutex 
 
 /* shared memory */
-extern Transaction *g_shmem_pool_data;
-extern Transaction *g_shmem_blockchain_data;
+extern TransactionPool *g_shmem_pool_data;
+extern TransactionBlock *g_shmem_blockchain_data;
 /* does this need to be extern? */
 extern int g_shmem_pool_fd; 
 extern int g_shmem_blockchain_fd;

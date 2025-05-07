@@ -1,4 +1,5 @@
 #include "controller.h"
+#include <string.h>
 //Vasco Alves 2022228207
 //Joao Neto 2023234004
 /* Process that we will generate */
@@ -8,9 +9,9 @@ static pid_t g_pid_val  = -1; // transaction validator
 
 /* Shared Memory */
 int g_shmem_pool_fd = -1; 
-Transaction *g_shmem_pool_data = NULL;
+TransactionPool *g_shmem_pool_data = NULL;
 int g_shmem_blockchain_fd = -1;
-Transaction *g_shmem_blockchain_data = NULL;
+TransactionBlock *g_shmem_blockchain_data = NULL;
 
 int pipe_validator_fd = -1;
 unsigned int g_miners_max = 0;                   // number of miners (number of threads in the miner process)
@@ -103,7 +104,7 @@ if (ftruncate(g_shmem_pool_fd, SHMEM_SIZE_POOL) == -1) {
 
     /* Set first transaction as size of pool */
     memset(g_shmem_pool_data, 0, SHMEM_SIZE_POOL);
-    g_shmem_pool_data[0].id_self = SHMEM_SIZE_POOL;
+    g_shmem_pool_data[0].tx.reward = SHMEM_SIZE_POOL;
 
     g_shmem_blockchain_fd = shm_open(SHMEM_PATH_BLOCKCHAIN, O_CREAT | O_RDWR, 0666);
     if (g_shmem_blockchain_fd < 0) {

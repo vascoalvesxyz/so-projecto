@@ -10,9 +10,8 @@
 #include <unistd.h>
 #include <time.h>
 
-#include "transaction.h"  // has struct Transaction definition
+#include "controller.h"  // has struct Transaction definition
 
-#define DEBUG
 #ifdef DEBUG
 int _macro_buf = 0;
 #define PRINT_SEM(NAME, sem)\
@@ -34,8 +33,8 @@ int _macro_buf = 0;
  * making the aging field zero. */
 
 int   g_pool_fd;
-Transaction *g_pool_ptr;
-size_t g_pool_size;
+TransactionPool *g_pool_ptr;
+size_t g_pool_size_read;
 sem_t *g_sem_empty;
 sem_t *g_sem_full; 
 sem_t *g_sem_mutex;
@@ -56,12 +55,12 @@ int t_init() {
         return fd;
     } 
 
-    ShmemInfo info;
+    TransactionPool info;
     if (read(fd, &info, sizeof(Transaction)) < 0) {
             return -1;
     }
 
-    size_t size = (size_t) info.id_self;
+    size_t size = (size_t) info.tx.reward;
     printf("size = %ld\n", size);
 
     void *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -83,7 +82,7 @@ int t_init() {
     /* Initializado correctament */
     g_pool_fd = fd;
     g_pool_ptr = ptr;
-    g_pool_size = size;
+    g_pool_size_read = size;
 
     g_sem_full = sem_full;
     g_sem_empty = sem_empty;
@@ -93,7 +92,7 @@ int t_init() {
 
 void t_cleanup() {
     /* Shared Memory */
-    munmap(g_pool_ptr, g_pool_size); 
+    munmap(g_pool_ptr, g_pool_size_read); 
     close(g_pool_fd);
 
     /* Semaphores */
@@ -108,10 +107,10 @@ void handle_sigint() {
 }
 
 
-Transaction transaction_generate(int reward) {
+//Transaction transaction_generate(int reward) {
     /* id_self, id_sender, id_reciever, timestamp, reward, value */
-    return (Transaction) { 1, 2, 3, 4, reward, 5 };
-}
+ //   return (TransactionPool) {3, 4, reward};
+//}
 
 int main(int argc, char *argv[]) {
 
@@ -135,12 +134,12 @@ int main(int argc, char *argv[]) {
 
     signal(SIGINT, handle_sigint);
 
-    Transaction *pool_ptr = g_pool_ptr + 1; // ignore first transaction
-    size_t pool_size = g_pool_size/sizeof(Transaction) - 1; // subtract first transaction
+    TransactionPool *pool_ptr = g_pool_ptr + 1; // ignore first transaction
+    size_t pool_size = g_pool_size_read/sizeof(Transaction) - 1; // subtract first transaction
 
-    Transaction temp;
+    //TransactionPool temp;
     while (1) {
-        temp = transaction_generate(reward);
+       // temp = transaction_generate(reward);
         puts("[TxGen] Waiting...");
         sem_wait(g_sem_empty);
 
@@ -150,8 +149,8 @@ int main(int argc, char *argv[]) {
 
         sem_wait(g_sem_mutex);
         for (unsigned i = 0; i < pool_size ; i++) {
-            if (pool_ptr[i].id_self == 0) {
-                pool_ptr[i] = temp;
+            if (pool_ptr[i].age == 0) {
+                //pool_ptr[i] = temp;
                 printf("[TxGen] Inserting transaction in slot: %d\n", i);
                 break;
             }
