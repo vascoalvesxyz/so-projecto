@@ -54,7 +54,10 @@ void* miner_thread(void* id_ptr) {
                     printf("[Miner Thread %d] Mining transaction in slot: %d\n", id, i);
 
                     transaction_to_write = pool_ptr[i];
-                    write(pipe_validator_fd, (void*) &transaction_to_write, sizeof(Transaction));
+                    if(write(pipe_validator_fd, (void*) &transaction_to_write, sizeof(Transaction))<0){
+            printf("Writing in pipe gone wrong\n");
+            break;
+          }
 
                     break;
                 }
