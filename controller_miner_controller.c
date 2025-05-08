@@ -91,9 +91,10 @@ void* miner_thread(void* id_ptr) {
 
                 puts("The proof is not working");
 
-                write(pipe_validator_fd, (void*) &new_block, sizeof(BlockInfo));
-                write(pipe_validator_fd, (void*) transaction_array, sizeof(Transaction) * transaction_n);
-
+                if(write(pipe_validator_fd, (void*) &new_block, sizeof(BlockInfo))< 0)
+                printf("Write error in Pipe for miner\n");
+                if(write(pipe_validator_fd, (void*) transaction_array, sizeof(Transaction) * transaction_n) < 0)
+                printf("Write error in Pipe for miner\n"); 
                 printf("[Miner Thread %d] WROTE A BLOCK TO VALIDATOR", id);
                 transaction_n = 0;
             }
