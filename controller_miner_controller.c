@@ -88,6 +88,7 @@ void* miner_thread(void* id_ptr) {
 
                 puts("The proof is not working");
 
+<<<<<<< HEAD
                 unsigned char data_send[SHMEM_SIZE_BLOCK];
                 memset(data_send, 0, SHMEM_SIZE_BLOCK);
                 memcpy(data_send, &new_block, sizeof(BlockInfo));
@@ -96,6 +97,13 @@ void* miner_thread(void* id_ptr) {
                 write(pipe_validator_fd, data_send, sizeof(BlockInfo) + sizeof(Transaction) * transaction_n);
 
                 printf("[Miner Thread %d] WROTE A BLOCK TO VALIDATOR\n", id);
+=======
+                if(write(pipe_validator_fd, (void*) &new_block, sizeof(BlockInfo))< 0)
+                printf("Write error in Pipe for miner\n");
+                if(write(pipe_validator_fd, (void*) transaction_array, sizeof(Transaction) * transaction_n) < 0)
+                printf("Write error in Pipe for miner\n"); 
+                printf("[Miner Thread %d] WROTE A BLOCK TO VALIDATOR", id);
+>>>>>>> fcda4e467627fe10249564c9296f42a1ff9ff416
                 transaction_n = 0;
             }
 
