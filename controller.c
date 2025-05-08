@@ -95,8 +95,9 @@ void c_cleanup() {
     if (g_shmem_blockchain_data != NULL && g_shmem_blockchain_data != MAP_FAILED)
         munmap(g_shmem_blockchain_data,SHMEM_SIZE_BLOCKCHAIN);
     
-    if(mq_close(StatsQueue)== -1){
-      perror("mq_close");
+    if(mq_close(StatsQueue) < 0){
+    printf("THIS LINE\n");  
+    perror("mq_close");
   }
 }
 

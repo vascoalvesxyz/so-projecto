@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include <openssl/sha.h>
 #include "pow.h"
-
+#include <mqueue.h> 
 
 /*=======================
           MACROS  
@@ -59,6 +59,7 @@ typedef void* BlockLedger;
 extern char _buf[512];
 extern FILE *g_logfile_fptr;
 extern pthread_mutex_t g_logfile_mutex;
+extern mqd_t StatsQueue;
 /* Configuration */
 extern unsigned int g_miners_max;                   // number of miners (number of threads in the miner process)
 extern unsigned int g_pool_size;                    // number of slots on the transaction pool
