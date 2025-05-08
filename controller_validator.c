@@ -9,13 +9,12 @@ typedef struct Miner_block_info{
   int invalid_blocks;
   time_t timestamp;                     // Time when block was created
   int total_blocks;
-}Miner_block_info;
+} Miner_block_info;
 
 
 int running = 1;
 
-void val_exit(int retv) {
-
+void val_cleanup(int retv) {
     if (pipe_validator_fd < 0) {
         close(pipe_validator_fd);
     }
@@ -30,18 +29,14 @@ void val_exit(int retv) {
     exit(EXIT_FAILURE);
 }
 
-void val_handle_signit() {
-    val_exit(0);
+void val_handle_signit(int sig) {
+    if (sig != SIGINT) return;
+    shutdown = 1; // Signal threads to exit
+    sigint_received = 1; // Signal main thread to exit
 }
 
 void c_val_main() {
 
-    /* Open pipe (not blocking to check errors) */
-    pipe_validator_fd = open(PIPE_VALIDATOR, O_RDONLY | O_NONBLOCK);
-    if (pipe_validator_fd < 0) {
-        puts("Validator: Failed to open FIFO\n");
-        val_exit(1);
-    }
     struct mq_attr sets = {
         .mq_flags = 0,
         .mq_maxmsg = 10,
@@ -53,34 +48,44 @@ void c_val_main() {
         perror("Queue_open");
         exit(1);
     }
-    close(pipe_validator_fd);
-    signal(SIGINT, val_handle_signit);
 
-    pipe_validator_fd = open(PIPE_VALIDATOR, O_RDONLY);
+    struct sigaction sa;
+    sa.sa_handler = val_handle_signit;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+
+    /* Open pipe (not blocking to check errors) */
+    pipe_validator_fd = open(PIPE_VALIDATOR, O_RDONLY | O_NONBLOCK);
+    if (pipe_validator_fd < 0) {
+        puts("Validator: Failed to open FIFO\n");
+        val_cleanup(1);
+    }
+    close(pipe_validator_fd);
+
+    pipe_validator_fd = open(PIPE_VALIDATOR, O_RDONLY );
 
     unsigned char data_recieved[SHMEM_SIZE_BLOCK];
     TransactionBlock block_recieved = (void*) data_recieved;
     BlockInfo *block_info = (BlockInfo*) block_recieved;
 
-    // Transaction *transaction_array = (Transaction*) block_recieved + sizeof(BlockInfo);
+    while (shutdown == 0) {
 
-    while (1) {
+        unsigned long int count = read(pipe_validator_fd, block_recieved, SHMEM_SIZE_BLOCK);
 
-        ssize_t count = read(pipe_validator_fd, (char* )&block_recieved, sizeof(SHMEM_SIZE_BLOCK));
-        if (count < 0) {
+        printf("Read %ld out of %ld\n", count, SHMEM_SIZE_BLOCK);
+
+        if (count < SHMEM_SIZE_BLOCK) {
             puts("READ ERROR");
-            val_exit(1);
-        } else if (count == 0) {
             continue;
         }
 
         printf("[Validator] RECEIVED TRANSACTION ID=");
-
         for (int i = 0; i < TX_ID_LEN; i++) {
             printf("%02x", block_info->txb_id[i]);
         }
         puts("");
     }
 
-    val_exit(0);
+    val_cleanup(0);
 }

@@ -12,8 +12,9 @@
 #include <assert.h>
 #include <stdint.h>
 #include <openssl/sha.h>
-#include "pow.h"
 #include <mqueue.h> 
+#include <string.h>
+#include "pow.h"
 
 /*=======================
           MACROS  
@@ -81,6 +82,9 @@ extern BlockInfo *g_shmem_blockchain_data;
 /* does this need to be extern? */
 extern int g_shmem_pool_fd; 
 extern int g_shmem_blockchain_fd;
+
+extern _Atomic sig_atomic_t shutdown;
+extern _Atomic sig_atomic_t sigint_received;
 
 /*=======================
    FUNCTION DEFINITIONS  

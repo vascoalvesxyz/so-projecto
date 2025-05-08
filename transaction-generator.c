@@ -111,12 +111,16 @@ void handle_sigint() {
 Transaction transaction_generate(int reward) {
     /* tx_id, reward, value, timestamp */
     Transaction new_transaction;
+    memset(&new_transaction, 0, sizeof(Transaction));
+    new_transaction.tx_id[TX_ID_LEN-1] = '\0';
+
     new_transaction.reward = reward;
     new_transaction.value = rand();
     new_transaction.timestamp = time(NULL);
 
     uint32_t input = my_pid+transaction_n;
     SHA256( (void*) &input, sizeof(uint32_t), (unsigned char*) &new_transaction.tx_id);
+    new_transaction.tx_id[32] = '\0';
     return new_transaction;
 }
 

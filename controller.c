@@ -1,5 +1,4 @@
 #include "controller.h"
-#include <string.h>
 #include <mqueue.h> 
 
 //Vasco Alves 2022228207
@@ -23,6 +22,9 @@ typedef struct Miner_block_info{
 static pid_t g_pid_mc   = -1; // miner controller
 static pid_t g_pid_stat = -1; // statistics
 static pid_t g_pid_val  = -1; // transaction validator
+
+_Atomic sig_atomic_t shutdown = 0;
+_Atomic sig_atomic_t sigint_received = 0;
 
 /* Shared Memory */
 int g_shmem_pool_fd = -1; 

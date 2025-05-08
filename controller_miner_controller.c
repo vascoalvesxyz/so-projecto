@@ -16,9 +16,6 @@ unsigned int i = 0, created_threads = 0;
 pthread_t *mc_threads;
 int *id_array;
 
-_Atomic sig_atomic_t shutdown = 0;
-_Atomic sig_atomic_t sigint_received = 0;
-
 unsigned int uid = 0;
 
 void* miner_thread(void* id_ptr) {
@@ -91,10 +88,14 @@ void* miner_thread(void* id_ptr) {
 
                 puts("The proof is not working");
 
-                write(pipe_validator_fd, (void*) &new_block, sizeof(BlockInfo));
-                write(pipe_validator_fd, (void*) transaction_array, sizeof(Transaction) * transaction_n);
+                unsigned char data_send[SHMEM_SIZE_BLOCK];
+                memset(data_send, 0, SHMEM_SIZE_BLOCK);
+                memcpy(data_send, &new_block, sizeof(BlockInfo));
+                memcpy(data_send + sizeof(BlockInfo), transaction_array, sizeof(Transaction) * transaction_n);
+                
+                write(pipe_validator_fd, data_send, sizeof(BlockInfo) + sizeof(Transaction) * transaction_n);
 
-                printf("[Miner Thread %d] WROTE A BLOCK TO VALIDATOR", id);
+                printf("[Miner Thread %d] WROTE A BLOCK TO VALIDATOR\n", id);
                 transaction_n = 0;
             }
 
