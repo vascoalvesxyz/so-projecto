@@ -22,8 +22,12 @@ typedef struct {
 
 // Transaction Block structure
 typedef struct {
-  char txb_id[TXB_ID_LEN];              // Unique block ID (e.g., ThreadID + #)
-  char previous_block_hash[HASH_SIZE];  // Hash of the previous block
+  char txb_id[TXB_ID_LEN];
+
+  // Unique block ID (e.g., ThreadID + #)
+  
+  char  previous_block_hash[HASH_SIZE]; // Hash of the previous block
+  
   time_t timestamp;                     // Time when block was created
   Transaction *transactions;            // Array of transactions
   unsigned int nonce;                   // PoW solution
