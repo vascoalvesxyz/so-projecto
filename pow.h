@@ -23,9 +23,9 @@ typedef struct {
   int error;
 } PoWResult;
 
-void compute_sha256(const TransactionBlock *input, char *output);
-PoWResult proof_of_work(TransactionBlock *block);
-int verify_nonce(const TransactionBlock *block);
+void compute_sha256(const BlockInfo *input, char *output);
+PoWResult proof_of_work(BlockInfo *block);
+int verify_nonce(const BlockInfo *block);
 int check_difficulty(const char *hash, const int reward);
 DifficultyLevel getDifficultFromReward(const int reward);
 

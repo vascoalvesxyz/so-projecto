@@ -28,7 +28,7 @@ static pid_t g_pid_val  = -1; // transaction validator
 int g_shmem_pool_fd = -1; 
 TransactionPool *g_shmem_pool_data = NULL;
 int g_shmem_blockchain_fd = -1;
-TransactionBlock *g_shmem_blockchain_data = NULL;
+BlockInfo *g_shmem_blockchain_data = NULL;
 
 int pipe_validator_fd = -1;
 unsigned int g_miners_max = 0;                   // number of miners (number of threads in the miner process)

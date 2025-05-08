@@ -25,17 +25,18 @@ typedef struct {
   char txb_id[TXB_ID_LEN];              // Unique block ID (e.g., ThreadID + #)
   char previous_block_hash[HASH_SIZE];  // Hash of the previous block
   time_t timestamp;                     // Time when block was created
-  Transaction *transactions;            // Array of transactions
   unsigned int nonce;                   // PoW solution
-} TransactionBlock;
+} BlockInfo;
 
-// Inline function to compute the size of a TransactionBlock
+// Inline function to compute the size of a BlockInfo
 static inline size_t get_transaction_block_size() {
+
   if (transactions_per_block == 0) {
     perror("Must set the 'transactions_per_block' variable before using!\n");
     exit(-1);
   }
-  return sizeof(TransactionBlock) +
+
+  return sizeof(BlockInfo) +
          transactions_per_block * sizeof(Transaction);
 }
 

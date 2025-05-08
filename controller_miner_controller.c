@@ -19,13 +19,17 @@ int *id_array;
 _Atomic sig_atomic_t shutdown = 0;
 _Atomic sig_atomic_t sigint_received = 0;
 
+unsigned int uid = 0;
+
 void* miner_thread(void* id_ptr) {
+    int id = *( (int*) id_ptr );
+
     int pool_size = g_pool_size;
     TransactionPool *pool_ptr = g_shmem_pool_data; 
 
-    int id = *( (int*) id_ptr );
+    Transaction *transaction_array = (Transaction*) malloc(sizeof(Transaction)*g_transactions_per_block) ; 
+    unsigned int transaction_n = 0;
 
-    TransactionPool transaction_to_write;
     while (shutdown == 0) {
 
         if (sem_trywait(g_sem_pool_full) == 0) {
@@ -39,30 +43,62 @@ void* miner_thread(void* id_ptr) {
             if (shutdown == 1)
                 break;
 
-            #ifdef DEBUG
-            puts("[DEBUG] [Miner controller] Waiting for mutex");
-            #endif
-
-            sem_wait(g_sem_pool_mutex);
+            // sem_wait(g_sem_pool_mutex);
             if (shutdown == 1) break;
 
+            /* Find Transaction */
             for (unsigned i = pool_size-1; i > 1 ; i--) {
-                /* TODO: Mine Transaction */
                 if (pool_ptr[i].empty == 1) {
-                    printf("[Miner Thread %d] Mining transaction in slot: %d\n", id, i);
-
-                    transaction_to_write = pool_ptr[i];
-                    if(write(pipe_validator_fd, (void*) &transaction_to_write, sizeof(TransactionPool))<0){
-                        printf("Writing in pipe gone wrong\n");
-                        break;
-                    }
-
-                    pool_ptr[i].empty = 0;
+                    // pool_ptr[i].empty = 0;
+                    printf("[Miner Thread %d] Adding transaction in slot: %d\n", id, i);
+                    transaction_array[transaction_n++] = pool_ptr[i].tx;;
                     break; 
                 }
             }
+            // sem_post(g_sem_pool_mutex);
 
-            sem_post(g_sem_pool_mutex);
+            /* If transaction_array is full, send new block to validator */
+            if (transaction_n == g_transactions_per_block) {
+
+                BlockInfo new_block;
+                uint32_t input = id+uid;
+                uid++;
+
+                SHA256( (void*) &input, sizeof(uint32_t), (unsigned char*) &new_block.txb_id);
+                new_block.timestamp = time(NULL);
+                new_block.nonce = 0;
+
+
+                /* Find last block of blockchain */
+                /* There are no blocks in the blockchain */
+                // unsigned char *blockchain_ptr = (unsigned char*) g_shmem_blockchain_data;
+
+                // BlockInfo prev_block;
+                //
+                // if ( ((BlockInfo*) blockchain_ptr)->timestamp == 0) {
+                //     i = -1;
+                //     prev_block = *((BlockInfo*) blockchain_ptr);
+                // } else {
+                //     for (i = 0; i < g_blockchain_blocks; i++) {
+                //         if ( ((BlockInfo*)(blockchain_ptr+SHMEM_SIZE_BLOCK) )->timestamp == 0 ) {
+                //             break;
+                //         }
+                //         blockchain_ptr += SHMEM_SIZE_BLOCK;
+                //     }
+                //
+                //     prev_block = *((BlockInfo*) blockchain_ptr);
+                // }
+
+                puts("The proof is not working");
+
+                write(pipe_validator_fd, (void*) &new_block, sizeof(BlockInfo));
+                write(pipe_validator_fd, (void*) transaction_array, sizeof(Transaction) * transaction_n);
+
+                printf("[Miner Thread %d] WROTE A BLOCK TO VALIDATOR", id);
+                transaction_n = 0;
+            }
+
+
             sem_post(g_sem_pool_empty);
         } else if (errno == EAGAIN) {
             sleep(1);
@@ -74,6 +110,7 @@ void* miner_thread(void* id_ptr) {
     }
 
     printf("[Miner Thread %d] Shutdown set to 0, exiting thread.\n", id);
+    free(transaction_array);
     // mc_threads[id-1] = NULL; // ?
     pthread_exit(NULL);
 }

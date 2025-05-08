@@ -10,6 +10,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <assert.h>
+#include <stdint.h>
+#include <openssl/sha.h>
 #include "pow.h"
 
 
@@ -24,9 +26,10 @@
 #define SHMEM_PATH_POOL         "/dei_transaction_pool"
 #define SHMEM_PATH_BLOCKCHAIN   "/dei_blockchain"
 #define PIPE_VALIDATOR          "VALIDATOR_INPUT"
-#define SHMEM_SIZE_POOL       sizeof(Transaction) * (g_pool_size+1)
-#define SHMEM_SIZE_BLOCK      sizeof(Transaction) * g_transactions_per_block
-#define SHMEM_SIZE_BLOCKCHAIN sizeof(Transaction)*  g_transactions_per_block * g_blockchain_blocks
+#define SHMEM_SIZE_POOL         sizeof(TransactionPool) * (g_pool_size+1)
+#define SHMEM_SIZE_BLOCK        sizeof(BlockInfo) + sizeof(Transaction)*g_transactions_per_block
+#define PIPE_MESSAGE_SIZE       SHMEM_SIZE_BLOCK
+#define SHMEM_SIZE_BLOCKCHAIN   sizeof(BlockInfo) * g_blockchain_blocks
 
 /* TODO: Replace sprintf with snprintf */
 #define c_logprintf(...)\
@@ -45,7 +48,10 @@ typedef struct TransactionPool{
   Transaction tx;
   unsigned int age;
   int empty;
-}TransactionPool;
+} TransactionPool;
+
+typedef void* TransactionBlock;
+typedef void* BlockLedger;
 
 /*=======================
      GLOBAL VARIABLES  
@@ -70,7 +76,7 @@ extern sem_t *g_sem_pool_mutex; // transaction pool mutex
 
 /* shared memory */
 extern TransactionPool *g_shmem_pool_data;
-extern TransactionBlock *g_shmem_blockchain_data;
+extern BlockInfo *g_shmem_blockchain_data;
 /* does this need to be extern? */
 extern int g_shmem_pool_fd; 
 extern int g_shmem_blockchain_fd;
