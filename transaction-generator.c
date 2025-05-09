@@ -12,7 +12,8 @@
 
 #include <openssl/sha.h>
 
-#include "controller.h"  // has struct Transaction definition
+#include "deichain.h"  // has struct Transaction definition
+
 #ifdef DEBUG
 int _macro_buf;
 #endif /* ifdef DEBUG */

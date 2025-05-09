@@ -1,5 +1,5 @@
 //Vasco Alves 2022228207 Joao Neto 2023234004
-#include "controller.h"
+#include "deichain.h"
 
 void c_pow_block_serialize(TransactionBlock input, byte_t *serial) {
 

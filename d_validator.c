@@ -1,5 +1,5 @@
 //Vasco Alves 2022228207 Joao Neto 2023234004
-#include "controller.h"
+#include "deichain.h"
 
 int running = 1;
 

@@ -78,7 +78,7 @@ typedef struct {
 
 /* Transaction Block Information */
 typedef struct {
-  hash_t txb_id[HASH_SIZE];             // 32 bytes
+  hash_t txb_id[HASH_SIZE];             // 32 bytes, unique id
   hash_t previous_block_hash[HASH_SIZE];// 32 bytes, hash of the previous block
   time_t timestamp;                     // 8 bytes,  Time when block was created
   size_t nonce;                         // 8 bytes,  PoW solution
