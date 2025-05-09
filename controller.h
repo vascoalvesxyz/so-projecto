@@ -14,7 +14,6 @@
 #include <openssl/sha.h>
 #include <mqueue.h> 
 #include <string.h>
-#include "pow.h"
 
 /*=======================
           MACROS  
@@ -31,6 +30,17 @@
 #define SHMEM_SIZE_BLOCK        sizeof(BlockInfo) + sizeof(Transaction)*g_transactions_per_block
 #define PIPE_MESSAGE_SIZE       SHMEM_SIZE_BLOCK
 #define SHMEM_SIZE_BLOCKCHAIN   sizeof(BlockInfo) * g_blockchain_blocks
+#define POW_MAX_OPS 10000000
+#define INITIAL_HASH \
+  "00006a8e76f31ba74e21a092cca1015a418c9d5f4375e7a4fec676e1d2ec1436"
+
+#define HASH_SIZE 32;
+#define HASH_STRING_SIZE 65;
+typedef unsigned char* hash_t;
+typedef char* hashstring_t;
+
+
+
 
 /* TODO: Replace sprintf with snprintf */
 #define c_logprintf(...)\
@@ -44,6 +54,35 @@
         printf("[DEBUG] [TxGen] SEMAPHORE %s = %d\n", NAME, _macro_buf);\
     } else { perror("sem_getvalue failed"); }
 #endif /* ifdef DEBUG */
+
+typedef enum { EASY = 1, NORMAL = 2, HARD = 3 } DifficultyLevel;
+
+typedef struct {
+  char hash[HASH_SIZE];
+  double elapsed_time;
+  int operations;
+  int error;
+} PoWResult;
+
+typedef struct {
+  char tx_id[HASH_SIZE];  // Unique transaction ID (e.g., PID + #)
+  int reward;             // Reward associated with PoW
+  float value;            // Quantity or value transferred
+  time_t timestamp;       // Creation time of the transaction
+} Transaction;
+
+// Transaction Block structure
+typedef struct {
+  char txb_id[HASH_SIZE];
+
+  // Unique block ID (e.g., ThreadID + #)
+  
+  char  previous_block_hash[HASH_SIZE]; // Hash of the previous block
+  
+  time_t timestamp;                     // Time when block was created
+  unsigned int nonce;                   // PoW solution
+} BlockInfo;
+
 
 typedef struct TransactionPool{
   Transaction tx;

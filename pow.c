@@ -108,11 +108,9 @@ int check_difficulty(const char *hash, const int reward) {
 }
 
 /* Function to verify a nonce */
-int verify_nonce(TransactionBlock tb) {
-  BlockInfo *block_info = (BlockInfo*) tb;
-  Transaction *trans_info = (Transaction*) (tb+ sizeof(BlockInfo));
+int verify_nonce(const BlockInfo *block) {
   char hash[SHA256_DIGEST_LENGTH * 2 + 1];
-  int reward = get_max_transaction_reward(tb, transactions_per_block);
+  int reward = get_max_transaction_reward(block, transactions_per_block);
   compute_sha256(block, hash);
   return check_difficulty(hash, reward);
 }
