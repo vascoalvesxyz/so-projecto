@@ -2,7 +2,7 @@ CC := gcc -std=c99 -D_POSIX_C_SOURCE=200809L
 FLAGS := -O2 -Wall -Wextra -Werror
 DEBUG := -g -DDEBUG 
 LINKS := -z noexecstack -lpthread -lrt -lcrypto
-SRC := controller_statistics.c controller_validator.c controller_miner_controller.c controller.c
+SRC := controller_pow.c controller_statistics.c controller_validator.c controller_miner_controller.c controller.c
 
 .PHONY: install
 

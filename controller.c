@@ -1,5 +1,4 @@
 #include "controller.h"
-#include <mqueue.h> 
 
 //Vasco Alves 2022228207
 //Joao Neto 2023234004
@@ -7,17 +6,6 @@
 #ifdef DEBUG
 int _macro_buf;
 #endif /* ifdef DEBUG */
-
-/* Process that we will generate */
-#define QUEUE_NAME "/MinerInfo"
-typedef struct Miner_block_info{
-      
-  char  miner_hash[HASH_SIZE]; // Hash of the previous block
-  int valid_blocks;
-  int invalid_blocks;
-  time_t timestamp;                     // Time when block was created
-  int total_blocks;
-}Miner_block_info;
 
 static pid_t g_pid_mc   = -1; // miner controller
 static pid_t g_pid_stat = -1; // statistics
@@ -160,7 +148,7 @@ if (ftruncate(g_shmem_blockchain_fd, SHMEM_SIZE_BLOCKCHAIN) == -1) {
     struct mq_attr sets = {
         .mq_flags = 0,
         .mq_maxmsg = 10,
-        .mq_msgsize = sizeof(Miner_block_info),
+        .mq_msgsize = sizeof(MinerBlockInfo),
         .mq_curmsgs = 0
     };
     StatsQueue = mq_open(QUEUE_NAME, O_CREAT | O_RDWR, 0666, &sets);

@@ -117,6 +117,7 @@ int verify_nonce(const BlockInfo *block) {
 
 /* Proof-of-Work function */
 PoWResult proof_of_work(BlockInfo *block) {
+
   PoWResult result;
 
   result.elapsed_time = 0.0;
@@ -127,7 +128,7 @@ PoWResult proof_of_work(BlockInfo *block) {
 
   int reward = get_max_transaction_reward(block, transactions_per_block);
 
-  char hash[SHA256_DIGEST_LENGTH * 2 + 1];
+  unsigned char res[SHA256_DIGEST_LENGTH * 2 + 1];
   clock_t start = clock();
 
   while (1) {

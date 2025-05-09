@@ -1,5 +1,9 @@
+//Vasco Alves 2022228207 Joao Neto 2023234004
 #ifndef _CONTROLLER_H_
 #define _CONTROLLER_H_
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -10,10 +14,13 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <assert.h>
-#include <stdint.h>
 #include <openssl/sha.h>
 #include <mqueue.h> 
+#include <strings.h>
+#include <signal.h>
+#include <errno.h>
 #include <string.h>
+#include <mqueue.h> 
 
 /*=======================
           MACROS  
@@ -29,18 +36,14 @@
 #define SHMEM_SIZE_POOL         sizeof(TransactionPool) * (g_pool_size+1)
 #define SHMEM_SIZE_BLOCK        sizeof(BlockInfo) + sizeof(Transaction)*g_transactions_per_block
 #define PIPE_MESSAGE_SIZE       SHMEM_SIZE_BLOCK
+#define QUEUE_NAME "/MinerInfo"
 #define SHMEM_SIZE_BLOCKCHAIN   sizeof(BlockInfo) * g_blockchain_blocks
 #define POW_MAX_OPS 10000000
 #define INITIAL_HASH \
   "00006a8e76f31ba74e21a092cca1015a418c9d5f4375e7a4fec676e1d2ec1436"
 
-#define HASH_SIZE 32;
-#define HASH_STRING_SIZE 65;
-typedef unsigned char* hash_t;
-typedef char* hashstring_t;
-
-
-
+#define HASH_SIZE 32
+#define HASH_STRING_SIZE 65
 
 /* TODO: Replace sprintf with snprintf */
 #define c_logprintf(...)\
@@ -55,17 +58,34 @@ typedef char* hashstring_t;
     } else { perror("sem_getvalue failed"); }
 #endif /* ifdef DEBUG */
 
+/*=======================
+  STRUCTS, TYPES & ENUMS  
+  ======================= */
 typedef enum { EASY = 1, NORMAL = 2, HARD = 3 } DifficultyLevel;
 
+typedef void* TransactionBlock;
+typedef void* BlockLedger;
+typedef unsigned char byte_t;
+typedef unsigned char hash_t;
+typedef char hashstring_t;
+
+typedef struct MinerBlockInfo{
+  hash_t miner_hash[HASH_SIZE]; // Hash of the previous block
+  int valid_blocks;
+  int invalid_blocks;
+  time_t timestamp;                     // Time when block was created
+  int total_blocks;
+} MinerBlockInfo;
+
 typedef struct {
-  char hash[HASH_SIZE];
+  hash_t hash[HASH_SIZE];
   double elapsed_time;
   int operations;
   int error;
 } PoWResult;
 
 typedef struct {
-  char tx_id[HASH_SIZE];  // Unique transaction ID (e.g., PID + #)
+  hash_t tx_id[HASH_SIZE];  // Unique transaction ID (e.g., PID + #)
   int reward;             // Reward associated with PoW
   float value;            // Quantity or value transferred
   time_t timestamp;       // Creation time of the transaction
@@ -73,7 +93,7 @@ typedef struct {
 
 // Transaction Block structure
 typedef struct {
-  char txb_id[HASH_SIZE];
+  hash_t txb_id[HASH_SIZE];
 
   // Unique block ID (e.g., ThreadID + #)
   
@@ -83,15 +103,11 @@ typedef struct {
   unsigned int nonce;                   // PoW solution
 } BlockInfo;
 
-
 typedef struct TransactionPool{
   Transaction tx;
   unsigned int age;
   int empty;
 } TransactionPool;
-
-typedef void* TransactionBlock;
-typedef void* BlockLedger;
 
 /*=======================
      GLOBAL VARIABLES  
@@ -130,16 +146,29 @@ extern _Atomic sig_atomic_t sigint_received;
   ======================= */
 void c_logputs(const char* string);
 void c_cleanup();       // general cleanup function
+
 /* Controller */
 int  c_ctrl_init();     // intialize controller       
 int  c_ctrl_import_config(const char* path);
 void c_ctrl_cleanup(); // controller specific cleanup
 void c_ctrl_handle_sigint();
+
 /* Miner Controller */
 void c_mc_main(unsigned int miners_max);
+
 /* Validator */
 void c_val_main();
+
 /* Statistics */
 void c_stat_main();
+
+/* Proof of work */
+void c_pow_block_serialize(TransactionBlock input, byte_t *serial);
+void c_pow_hash_compute(TransactionBlock input, hash_t *output);
+void c_pow_hash_to_string(hash_t *input, hashstring_t *output);
+int  c_pow_getmaxreward(TransactionBlock tb);
+int  c_pow_checkdifficulty(hash_t *hash, int reward);
+int  c_pow_verify_nonce(TransactionBlock tb);
+PoWResult c_pow_proofofwork(TransactionBlock *tb);
 
 #endif // !_CONTROLLER_H_
