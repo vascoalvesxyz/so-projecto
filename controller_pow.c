@@ -3,8 +3,8 @@
 
 void c_pow_block_serialize(TransactionBlock input, byte_t *serial) {
 
-  memset(serial, 0, SHMEM_SIZE_BLOCK);
-  memcpy(serial, input, SHMEM_SIZE_BLOCK);
+  memset(serial, 0, SIZE_BLOCK);
+  memcpy(serial, (void*) input, SIZE_BLOCK);
 
   BlockInfo *bf = (BlockInfo*) serial;
   bf->nonce = 0;
@@ -13,12 +13,12 @@ void c_pow_block_serialize(TransactionBlock input, byte_t *serial) {
 void c_pow_hash_compute(TransactionBlock input, hash_t *output) {
 
   /* Serialize transaction data */
-  byte_t data_serial[SHMEM_SIZE_BLOCK];
+  byte_t data_serial[SIZE_BLOCK];
   c_pow_block_serialize(input, data_serial);
 
   /* Clean buffer and write hash */
   memset(output, 0, 32);
-  SHA256(data_serial, SHMEM_SIZE_BLOCK, output);
+  SHA256(data_serial, SIZE_BLOCK, output);
 }
 
 void c_pow_hash_to_string(hash_t *input, hashstring_t *output) {

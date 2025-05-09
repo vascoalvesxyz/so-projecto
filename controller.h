@@ -25,19 +25,19 @@
 /*=======================
           MACROS  
   ======================= */
-#define FPATH_CONFIG            "config.cfg"
-#define FPATH_LOG               "DEIChain_log.txt"
-#define SEM_POOL_EMPTY          "/dei_pool_empty"
-#define SEM_POOL_FULL           "/dei_pool_full"
-#define SEM_POOL_MUTEX          "/dei_pool_mutex"
-#define SHMEM_PATH_POOL         "/dei_transaction_pool"
-#define SHMEM_PATH_BLOCKCHAIN   "/dei_blockchain"
-#define PIPE_VALIDATOR          "VALIDATOR_INPUT"
-#define SHMEM_SIZE_POOL         sizeof(TransactionPool) * (g_pool_size+1)
-#define SHMEM_SIZE_BLOCK        sizeof(BlockInfo) + sizeof(Transaction)*g_transactions_per_block
-#define PIPE_MESSAGE_SIZE       SHMEM_SIZE_BLOCK
-#define QUEUE_NAME "/MinerInfo"
-#define SHMEM_SIZE_BLOCKCHAIN   sizeof(BlockInfo) * g_blockchain_blocks
+#define FPATH_CONFIG          "config.cfg"
+#define FPATH_LOG             "DEIChain_log.txt"
+#define SEM_POOL_EMPTY        "/dei_pool_empty"
+#define SEM_POOL_FULL         "/dei_pool_full"
+#define SEM_POOL_MUTEX        "/dei_pool_mutex"
+#define SHMEM_PATH_POOL       "/dei_transaction_pool"
+#define SHMEM_PATH_BLOCKCHAIN "/dei_blockchain"
+#define PIPE_VALIDATOR        "VALIDATOR_INPUT"
+#define QUEUE_NAME            "/MinerInfo"
+#define SIZE_BLOCK            sizeof(BlockInfo) + sizeof(Transaction)*g_transactions_per_block
+#define SHMEM_SIZE_POOL       sizeof(TransactionPool) * (g_pool_size+1)
+#define SHMEM_SIZE_BLOCKCHAIN SIZE_BLOCK * g_blockchain_blocks
+#define PIPE_MESSAGE_SIZE     SIZE_BLOCK
 #define POW_MAX_OPS 10000000
 #define INITIAL_HASH \
   "00006a8e76f31ba74e21a092cca1015a418c9d5f4375e7a4fec676e1d2ec1436"
@@ -63,11 +63,35 @@
   ======================= */
 typedef enum { EASY = 1, NORMAL = 2, HARD = 3 } DifficultyLevel;
 
-typedef void* TransactionBlock;
 typedef void* BlockLedger;
 typedef unsigned char byte_t;
 typedef unsigned char hash_t;
 typedef char hashstring_t;
+
+/* Transaction Block Information */
+typedef struct {
+  hash_t tx_id[HASH_SIZE];  // 32 bytes, Unique transaction ID (e.g., PID + #)
+  time_t timestamp;         // 8 bytes, Creation time of the transaction
+  int32_t reward;           // 4 bytes, Reward associated with PoW
+  float value;              // 4 bytes, Quantity or value transferred
+} Transaction;
+
+/* Transaction Block Information */
+typedef struct {
+  hash_t txb_id[HASH_SIZE];             // 32 bytes
+  hash_t previous_block_hash[HASH_SIZE];// 32 bytes, hash of the previous block
+  time_t timestamp;                     // 8 bytes,  Time when block was created
+  size_t nonce;                         // 8 bytes,  PoW solution
+  Transaction tx_array[]; // flexible array, 8 byte alignment
+} BlockInfo; // 80 bytes
+
+typedef void* TransactionBlock;
+
+typedef struct TransactionPool{
+  Transaction tx;
+  unsigned int age;
+  int empty;
+} TransactionPool;
 
 typedef struct MinerBlockInfo{
   hash_t miner_hash[HASH_SIZE]; // Hash of the previous block
@@ -84,30 +108,6 @@ typedef struct {
   int error;
 } PoWResult;
 
-typedef struct {
-  hash_t tx_id[HASH_SIZE];  // Unique transaction ID (e.g., PID + #)
-  int reward;             // Reward associated with PoW
-  float value;            // Quantity or value transferred
-  time_t timestamp;       // Creation time of the transaction
-} Transaction;
-
-// Transaction Block structure
-typedef struct {
-  hash_t txb_id[HASH_SIZE];
-
-  // Unique block ID (e.g., ThreadID + #)
-  
-  char  previous_block_hash[HASH_SIZE]; // Hash of the previous block
-  
-  time_t timestamp;                     // Time when block was created
-  unsigned int nonce;                   // PoW solution
-} BlockInfo;
-
-typedef struct TransactionPool{
-  Transaction tx;
-  unsigned int age;
-  int empty;
-} TransactionPool;
 
 /*=======================
      GLOBAL VARIABLES  

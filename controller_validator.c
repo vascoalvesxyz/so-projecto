@@ -55,7 +55,7 @@ void c_val_main() {
 
   pipe_validator_fd = open(PIPE_VALIDATOR, O_RDONLY );
 
-  unsigned char data_recieved[SHMEM_SIZE_BLOCK];
+  unsigned char data_recieved[SIZE_BLOCK];
   TransactionBlock block_recieved = (void*) data_recieved;
   BlockInfo *block_info = (BlockInfo*) block_recieved;
 
@@ -63,14 +63,14 @@ void c_val_main() {
 
   while (shutdown == 0) {
     /* Reading blocks the pipe */
-    unsigned long int count = read(pipe_validator_fd, block_recieved, SHMEM_SIZE_BLOCK);
+    unsigned long int count = read(pipe_validator_fd, block_recieved, SIZE_BLOCK);
     if (shutdown != 0) {
       break;
     }
 
-    printf("Read %ld out of %ld\n", count, SHMEM_SIZE_BLOCK);
+    printf("Read %ld out of %ld\n", count, SIZE_BLOCK);
 
-    if (count < SHMEM_SIZE_BLOCK) {
+    if (count < SIZE_BLOCK) {
       puts("READ ERROR");
       continue;
     }

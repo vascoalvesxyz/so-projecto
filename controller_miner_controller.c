@@ -13,22 +13,19 @@ unsigned int uid = 0;
 void* miner_thread(void* id_ptr) {
   int id = *( (int*) id_ptr );
 
+  unsigned int transaction_n = 0;
   int pool_size = g_pool_size;
   TransactionPool *pool_ptr = g_shmem_pool_data; 
 
-  Transaction *transaction_array = (Transaction*) malloc(sizeof(Transaction)*g_transactions_per_block) ; 
-  unsigned int transaction_n = 0;
+  TransactionBlock transaction_block = calloc(1, SIZE_BLOCK); 
+  BlockInfo   *new_block = transaction_block;
+  Transaction *transaction_array = transaction_block+sizeof(BlockInfo);
 
   while (shutdown == 0) {
 
     if (sem_trywait(g_sem_pool_full) == 0) {
       // Successfully decremented semaphore
       printf("[Miner Thread %d] Waiting...\n", id);
-
-#ifdef DEBUG
-      puts("[DEBUG] [Miner controller] Finished waiting for pool full");
-#endif
-
       if (shutdown == 1)
         break;
 
@@ -39,9 +36,10 @@ void* miner_thread(void* id_ptr) {
       for (unsigned i = pool_size-1; i > 1 ; i--) {
         if (pool_ptr[i].empty == 1) {
           // pool_ptr[i].empty = 0;
-          printf("[Miner Thread %d] Adding transaction in slot: %d\n", id, i);
-          transaction_array[transaction_n++] = pool_ptr[i].tx;;
-          break; 
+          printf("[Miner Thread %d] Grabbing transaction from slot: %d\n", id, i);
+          transaction_array[transaction_n] = pool_ptr[i].tx;
+          transaction_n++;
+          break;
         }
       }
       // sem_post(g_sem_pool_mutex);
@@ -49,50 +47,21 @@ void* miner_thread(void* id_ptr) {
       /* If transaction_array is full, send new block to validator */
       if (transaction_n == g_transactions_per_block) {
 
-        BlockInfo new_block;
         uint32_t input = id+uid;
         uid++;
 
-        SHA256( (void*) &input, sizeof(uint32_t), &new_block.txb_id[0]);
-        new_block.timestamp = time(NULL);
-        new_block.nonce = 0;
+        SHA256( (void*) &input, sizeof(uint32_t), &new_block->txb_id[0]);
+        new_block->timestamp = time(NULL);
+        new_block->nonce = 0;
 
 
-        /* Find last block of blockchain */
-        /* There are no blocks in the blockchain */
-        // unsigned char *blockchain_ptr = (unsigned char*) g_shmem_blockchain_data;
+        puts("[FYI] The proof is not working");
 
-        // BlockInfo prev_block;
-        //
-        // if ( ((BlockInfo*) blockchain_ptr)->timestamp == 0) {
-        //     i = -1;
-        //     prev_block = *((BlockInfo*) blockchain_ptr);
-        // } else {
-        //     for (i = 0; i < g_blockchain_blocks; i++) {
-        //         if ( ((BlockInfo*)(blockchain_ptr+SHMEM_SIZE_BLOCK) )->timestamp == 0 ) {
-        //             break;
-        //         }
-        //         blockchain_ptr += SHMEM_SIZE_BLOCK;
-        //     }
-        //
-        //     prev_block = *((BlockInfo*) blockchain_ptr);
-        // }
-
-        puts("The proof is not working");
-
-        unsigned char data_send[SHMEM_SIZE_BLOCK];
-        memset(data_send, 0, SHMEM_SIZE_BLOCK);
-        memcpy(data_send, &new_block, sizeof(BlockInfo));
-        memcpy(data_send + sizeof(BlockInfo), transaction_array, sizeof(Transaction) * transaction_n);
-
-
-        // TODO: Fix this
-        // ==1418197== Syscall param write(buf) points to uninitialised byte(s)
-        // ==1418197==    at 0x4EFD0AD: write (write.c:26)
-        // ==1418197==    by 0x400315E: miner_thread (in /home/raw/uni/so/so-projecto/controller)
-        // ==1418197==    by 0x4E857EA: start_thread (pthread_create.c:448)
-        // ==1418197==    by 0x4F08FB3: clone (clone.S:100)
-        write(pipe_validator_fd, data_send, sizeof(BlockInfo) + sizeof(Transaction) * transaction_n);
+        /* Serialize memory in heap and write */
+        unsigned char data_send[SIZE_BLOCK];
+        memset(data_send, 0, SIZE_BLOCK);
+        memcpy(data_send, transaction_block, SIZE_BLOCK);
+        write(pipe_validator_fd, data_send, SIZE_BLOCK);
 
         printf("[Miner Thread %d] WROTE A BLOCK TO VALIDATOR\n", id);
         transaction_n = 0;
@@ -110,7 +79,7 @@ void* miner_thread(void* id_ptr) {
   }
 
   printf("[Miner Thread %d] Shutdown set to 0, exiting thread.\n", id);
-  free(transaction_array);
+  free(transaction_block);
   // mc_threads[id-1] = NULL; // ?
   pthread_exit(NULL);
 }
