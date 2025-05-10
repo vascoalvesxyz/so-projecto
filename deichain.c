@@ -1,4 +1,5 @@
 #include "deichain.h"
+#include <openssl/crypto.h>
 
 //Vasco Alves 2022228207
 //Joao Neto 2023234004
@@ -81,6 +82,8 @@ void c_cleanup_globals() {
   if (pthread_mutex_destroy(&global.logfile_mutex) == 0) {
     pthread_mutex_init(&global.logfile_mutex, NULL);
   }
+
+  OPENSSL_cleanup();
 }
 
 int c_ctrl_init() {
@@ -159,6 +162,8 @@ int c_ctrl_init() {
 
   /* Create pipe */
   mkfifo(PIPE_VALIDATOR, 0666);
+
+  // OPENSSL_init_crypto(OPENSSL_INIT_NO_ATEXIT, NULL);
   return 1;
 }
 
@@ -290,39 +295,42 @@ int main() {
     goto exit_fail;
   }
 
+  OPENSSL_init_crypto(
+        OPENSSL_INIT_NO_LOAD_CONFIG |  // Disable config file loading
+        OPENSSL_INIT_NO_ATEXIT,        // Disable auto-cleanup
+        NULL
+  );
+
   /* Miner Controller */
-  puts("[Controller] Starting miner controller!");
+  c_logputs("[Controller] Starting miner controller!\n");
   pid_mc = fork();
   if (pid_mc < 0) {
-    puts("[Controller] Failed to start miner controller.\n");
+    c_logputs("[Controller] Failed to start miner controller.\n");
     goto exit_fail;
   } else if (pid_mc == 0) {
     c_mc_main(config.miners_max);
-    puts("minercontroller????");
     exit(1);
   } 
 
   /* Validator */
-  puts("[Controller] Starting validatro controller!");
+  c_logputs("[Controller] Starting validator controller!\n");
   pid_val = fork();
   if (pid_val < 0) {
-    puts("Failed to start validator.\n");
+    c_logputs("[Controller] Failed to start validator.\n");
     goto exit_fail;
   } else if (pid_val == 0) {
     c_val_main();
-    puts("validator????");
     exit(1);
   } 
 
   /* Statistics */
-  puts("Starting statistics!");
+  c_logputs("[Controller] Starting statistics.\n");
   pid_stat = fork();
   if (pid_stat < 0) {
-    puts("Failed to start Statistics controller.");
+    c_logputs("[Controller] Failed to start statistics.\n");
     goto exit_fail;
   } else if (pid_stat == 0) {
     c_stat_main();
-    puts("stat????");
     exit(1);
   }
 

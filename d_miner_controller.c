@@ -1,5 +1,6 @@
 //Vasco Alves 2022228207 Joao Neto 2023234004
 #include "deichain.h"
+#include <stdio.h>
 
 typedef struct MinerThreadArgs {
   int id;
@@ -7,12 +8,11 @@ typedef struct MinerThreadArgs {
 } MinerThreadArgs;
 
 typedef struct {
-  pthread_t *mc_threads;    // 8 bytes, pointer to thread array
-  MinerThreadArgs *args_array; // 8 bytes, pointer to id array
-  uint32_t created_threads; // 4 bytes
-  uint32_t miners_max;      // 4 byes
+  pthread_t *mc_threads;      // 8 bytes, pointer to thread array
+  MinerThreadArgs *args_array;// 8 bytes, pointer to id array
+  uint32_t created_threads;   // 4 bytes, created threads
+  uint32_t miners_max;        // 4 bytes, max num of miners
 } mc_vars_t;
-
 
 void* miner_thread(void* recv) {
 
@@ -30,7 +30,7 @@ void* miner_thread(void* recv) {
     if (sem_trywait(global.sem_pool_full) == 0) {
 
       #ifdef DEBUG
-      puts("[Miner Thread %d] Waiting...\n", args.id);
+      printf("[DEBUG] [Miner Thread %d] Waiting...\n", args.id);
       #endif
       if (shutdown == 1)
         break;
@@ -43,7 +43,7 @@ void* miner_thread(void* recv) {
         if (pool_ptr[i].empty == 1) {
           // pool_ptr[i].empty = 0;
           #ifdef DEBUG
-          puts("[Miner Thread %d] Grabbing transaction from slot: %d\n", args.id, i);
+          printf("[DEBUG] [Miner Thread %d] Grabbing transaction from slot: %d\n", args.id, i);
           #endif
           transaction_array[transaction_n] = pool_ptr[i].tx;
           transaction_n++;
@@ -51,10 +51,12 @@ void* miner_thread(void* recv) {
         }
       }
       // sem_post(global.sem_pool_mutex);
+      sem_post(global.sem_pool_empty);
 
       /* If transaction_array is full, send new block to validator */
       if (transaction_n == config.transactions_per_block) {
 
+        /* Create Unique ID */ 
         uint32_t input = args.id+uid;
         uid++;
 
@@ -62,18 +64,26 @@ void* miner_thread(void* recv) {
         new_block->timestamp = time(NULL);
         new_block->nonce = 0;
 
-        /* Serialize memory in heap and write */
-        unsigned char data_send[SIZE_BLOCK];
-        memset(data_send, 0, SIZE_BLOCK);
-        memcpy(data_send, transaction_block, SIZE_BLOCK);
-        write(args.pipe_validator_fd, data_send, SIZE_BLOCK);
+        /* Perform Proof of Work */
+        PoWResult result = c_pow_proofofwork(transaction_block);
 
-        c_logprintf("[Miner Thread %d] Wrote a block to validator.\n", args.id);
+        if (result.error == 0) {
+          c_logprintf("[Miner Thread %d] Proof of work completed in %lfms after %ld operations.\n", args.id, result.elapsed_time, result.operations );
+
+          /* Serialize memory in heap and write */
+          unsigned char data_send[SIZE_BLOCK];
+          memset(data_send, 0, SIZE_BLOCK);
+          memcpy(data_send, transaction_block, SIZE_BLOCK);
+          write(args.pipe_validator_fd, data_send, SIZE_BLOCK);
+
+          c_logprintf("[Miner Thread %d] Wrote a block to validator.\n", args.id);
+        } else {
+          c_logprintf("[Miner Thread %d] Wrote a block to validator.\n", args.id);
+        }
+
         transaction_n = 0;
       }
 
-
-      sem_post(global.sem_pool_empty);
     } else if (errno == EAGAIN) {
       sleep(1);
     } else {

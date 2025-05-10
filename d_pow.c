@@ -1,13 +1,10 @@
 //Vasco Alves 2022228207 Joao Neto 2023234004
 #include "deichain.h"
+#include <stdio.h>
 
 void c_pow_block_serialize(TransactionBlock input, byte_t *serial) {
-
   memset(serial, 0, SIZE_BLOCK);
   memcpy(serial, (void*) input, SIZE_BLOCK);
-
-  BlockInfo *bf = (BlockInfo*) serial;
-  bf->nonce = 0;
 }
 
 void c_pow_hash_compute(TransactionBlock input, hash_t *output) {
@@ -67,55 +64,42 @@ int c_pow_checkdifficulty(hash_t *hash, int reward) {
 
   int minimum = 4;
   int zeros = 0;
-  int byte = 0;
   DifficultyLevel difficulty = _get_dificulty(reward);
 
   /* check the hash directly */
-  char hex[2] = {0x00, 0x00};
-  for (byte = 0; byte < HASH_SIZE ; byte++) {
-    hex[0] = hash[byte] & 0xF0;
-    hex[1] = hash[byte] & 0x0F;
+  hashstring_t hashstring[HASH_STRING_SIZE];
+  c_pow_hash_to_string(hash, hashstring);
 
-    /* Check first hex value */
-    if (hex[0] != 0x0) {
-      break;
-    }
-
-    /* Both are 0 */
-    if (hex[1] == 0x0) {
-      zeros += 2;
-      continue;
-    } 
-    /* Second hex value is not zero */
-    else {
-      zeros += 1;
-      break;
-    }
-
+  int idx = 0;
+  while (hashstring[idx++] == '0') {
+    zeros += 4;
   }
 
   /* At least minimum zeros must exist */
-  if (zeros < minimum)
+  if (zeros < minimum) {
     return 0;
-
-  switch (difficulty) {
-    case EASY:  // 0000[0-b]
-      /* for even zeros, the next hex is hex[0] */
-      if ((zeros == 4 && hex[0] <= 0xB) || zeros > 4) return 1;
-      break;
-    case NORMAL:  // 00000
-      if (zeros >= 5) return 1;
-      break;
-    case HARD:  // // 00000[0-b]
-      /* for uneven zeros, the next hex is hex[1] */
-      if ((zeros == 5 && hex[1] <= 0xB) || zeros > 5) return 1;
-      break;
-    default:
-      fprintf(stderr, "Invalid Difficult\n");
-      exit(2);
   }
 
-  return 0;
+  char next_byte = hashstring[zeros+1];
+
+  switch (difficulty) {
+    case EASY: // 4 hex zeros (16 bits)
+      if ((zeros == 16 && next_byte <= 'b') || zeros > 16)
+        return 1;
+      break;
+    case NORMAL: // 5 hex zeros (20 bits)
+      if (zeros >= 20)
+        return 1;
+      break;
+    case HARD: // 5 hex zeros (20 bits) + next byte <= 'b'
+      if ((zeros == 20 && next_byte <= 'b') || zeros > 20)
+        return 1;
+      break;
+    default:
+      return 0;
+  }
+
+  return 1;
 }
 
 int c_pow_verify_nonce(TransactionBlock tb) {
@@ -148,8 +132,12 @@ PoWResult c_pow_proofofwork(TransactionBlock *tb) {
     /* Compute hash */
     c_pow_hash_compute(tb, hash);
 
+    #ifdef DEBUG
+    printf("[POW] attempt %ld\n", block->nonce);
+    #endif /* ifdef DEBUG */
+
     /* Check if hash is correct */
-    if (c_pow_checkdifficulty(hash, reward)) {
+    if (1 == c_pow_checkdifficulty(hash, reward)) {
       result.elapsed_time = (double)(clock() - start) / CLOCKS_PER_SEC;
       memcpy(result.hash, hash, HASH_SIZE);
       break;
@@ -163,10 +151,10 @@ PoWResult c_pow_proofofwork(TransactionBlock *tb) {
 
   /* Check if while ran until failure */
   if (block->nonce > POW_MAX_OPS) {
-    fprintf(stderr, "[POW] Giving up\n");
     result.error = 1;
   }
 
   result.operations = block->nonce + 1;
+
   return result;
 }

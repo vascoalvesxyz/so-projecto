@@ -39,12 +39,12 @@
 #define SHMEM_SIZE_POOL       sizeof(TransactionPool) * (config.pool_size+1)
 #define SHMEM_SIZE_BLOCKCHAIN SIZE_BLOCK * config.blockchain_blocks
 #define PIPE_MESSAGE_SIZE     SIZE_BLOCK
-#define POW_MAX_OPS 10000000
+#define POW_MAX_OPS 100000
 #define INITIAL_HASH \
 "00006a8e76f31ba74e21a092cca1015a418c9d5f4375e7a4fec676e1d2ec1436"
 
-#define HASH_SIZE 32
-#define HASH_STRING_SIZE 65
+#define HASH_SIZE SHA256_DIGEST_LENGTH
+#define HASH_STRING_SIZE HASH_SIZE*2 + 1
 
 /*=======================
   STRUCTS, TYPES & ENUMS  
@@ -92,7 +92,7 @@ typedef struct MinerBlockInfo{
 typedef struct {
   hash_t hash[HASH_SIZE];
   double elapsed_time;
-  int operations;
+  size_t operations;
   int error;
 } PoWResult;
 
@@ -168,22 +168,22 @@ static inline void c_logputs(const char* string) {
   struct tm tm_info;
   localtime_r(&now, &tm_info);  // thread-safe time conversion
 
-  char timestamp[32];
+  char timestamp[64];
   strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S] ", &tm_info);
 
-  // pthread_mutex_lock(&g_logfile_mutex);
 
   fputs(timestamp,  stdout);
   fputs(string,     stdout);
   fflush(stdout);
 
   if (global.logfile_fptr) {
+    pthread_mutex_lock(&global.logfile_mutex);
     fputs(timestamp,  global.logfile_fptr);
     fputs(string,     global.logfile_fptr);
     fflush(global.logfile_fptr);
+    pthread_mutex_unlock(&global.logfile_mutex);
   }
 
-  // pthread_mutex_unlock(&g_logfile_mutex);
 }
 
 static inline void c_logprintf(const char *fmt, ...) {

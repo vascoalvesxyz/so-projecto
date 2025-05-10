@@ -50,12 +50,13 @@ void c_val_main() {
     }
 
     if (count < SIZE_BLOCK) {
-      c_logputs("[Validator] READ ERROR");
+      c_logputs("[Validator] READ ERROR\n");
       continue;
     }
 
     c_pow_hash_to_string(block_info->txb_id, hashstring);
-    c_logprintf("[Validator] RECEIVED NEW BLOCK ID = %s\n", hashstring);
+    int valid = c_pow_verify_nonce(block_recieved);
+    c_logprintf("[Validator] Received block id=%.10s :: block is %s\n", hashstring, (valid == 1) ? "valid" : "NOT valid" );
   }
 
   val_cleanup(EXIT_SUCCESS);
