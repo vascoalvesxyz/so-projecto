@@ -38,9 +38,9 @@ void c_stat_main() {
   sa.sa_flags = 0;
   sigaction(SIGINT, &sa, NULL);
 
-  StatsQueue = mq_open(QUEUE_NAME, O_CREAT | O_RDWR, 0666, &vars.mq_sets);
+  global.mq_statistics = mq_open(QUEUE_NAME, O_CREAT | O_RDWR, 0666, &vars.mq_sets);
 
-  if (StatsQueue == (mqd_t)-1) {
+  if (global.mq_statistics == (mqd_t)-1) {
     puts("[Statistics] mq_open failed ");
     exit(EXIT_FAILURE);
   }
@@ -48,7 +48,7 @@ void c_stat_main() {
   MinerBlockInfo info;
 
   while (shutdown == 0) {
-    if (mq_receive(StatsQueue, (char*)&info, sizeof(MinerBlockInfo), NULL) < 0) {
+    if (mq_receive(global.mq_statistics, (char*)&info, sizeof(MinerBlockInfo), NULL) < 0) {
       if (shutdown != 0) break;
 
       if (errno == EINTR) {
@@ -62,6 +62,7 @@ void c_stat_main() {
   }
 
   /* Cleanup after exiting loop */
-  c_logputs("[Statistics]: Exited Successfully!");
+  c_cleanup_globals();
+  c_logputs("[Statistics]: Exited Successfully!\n");
   exit(EXIT_SUCCESS);
 }

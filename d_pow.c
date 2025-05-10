@@ -37,7 +37,7 @@ int c_pow_getmaxreward(TransactionBlock tb) {
   if (tb == NULL) return 0;
 
   Transaction *tarray = (Transaction*) ((char*) tb + sizeof(BlockInfo));
-  Transaction *tarray_end = tarray + g_transactions_per_block;
+  Transaction *tarray_end = tarray + config.transactions_per_block;
   int max_reward = tarray->reward;
   int reward = 0;
 

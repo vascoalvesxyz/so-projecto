@@ -35,9 +35,9 @@
 #define SHMEM_PATH_BLOCKCHAIN "/dei_blockchain"
 #define PIPE_VALIDATOR        "VALIDATOR_INPUT"
 #define QUEUE_NAME            "/MinerInfo"
-#define SIZE_BLOCK            sizeof(BlockInfo) + sizeof(Transaction)*g_transactions_per_block
-#define SHMEM_SIZE_POOL       sizeof(TransactionPool) * (g_pool_size+1)
-#define SHMEM_SIZE_BLOCKCHAIN SIZE_BLOCK * g_blockchain_blocks
+#define SIZE_BLOCK            sizeof(BlockInfo) + sizeof(Transaction)*config.transactions_per_block
+#define SHMEM_SIZE_POOL       sizeof(TransactionPool) * (config.pool_size+1)
+#define SHMEM_SIZE_BLOCKCHAIN SIZE_BLOCK * config.blockchain_blocks
 #define PIPE_MESSAGE_SIZE     SIZE_BLOCK
 #define POW_MAX_OPS 10000000
 #define INITIAL_HASH \
@@ -100,43 +100,42 @@ typedef struct {
 /*=======================
      GLOBAL VARIABLES  
   ======================= */
-extern FILE *g_logfile_fptr;
-extern pthread_mutex_t g_logfile_mutex;
-extern mqd_t StatsQueue;
+struct config_t {
+  uint32_t miners_max;                   // number of miners (number of threads in the miner process)
+  uint32_t pool_size;                    // number of slots on the transaction pool
+  uint32_t transactions_per_block;       // number of transactions per block (will affect block size)
+  uint32_t blockchain_blocks;            // maximum number of blocks that can be saved in the
+  uint32_t transaction_pool_size;        // Transactions in POOL
+};
 
-/* Configuration */
-extern unsigned int g_miners_max;                   // number of miners (number of threads in the miner process)
-extern unsigned int g_pool_size;                    // number of slots on the transaction pool
-extern unsigned int g_transactions_per_block;       // number of transactions per block (will affect block size)
-extern unsigned int g_blockchain_blocks;            // maximum number of blocks that can be saved in the
-extern unsigned int g_transaction_pool_size;        // Transactions in POOL
+struct global_t {
+  mqd_t mq_statistics;
+  /* Shared Memory */
+  TransactionPool *shmem_pool_data;       // 8 bytes
+  BlockInfo       *shmem_blockchain_data; // 8 bytes
+  /* File descriptors */
+  FILE *logfile_fptr;                     // 8 bytes
+  sem_t *sem_pool_empty; // 8 bytes,  counts how many empty slots
+  sem_t *sem_pool_full;  // 8 bytes,  transaction pool is full
+  sem_t *sem_pool_mutex; // 8 bytes,  transaction pool mutex 
+  pthread_mutex_t logfile_mutex; // ? bytes
+  int shmem_pool_fd;        // 4 bytes 
+  int shmem_blockchain_fd;  // 4 bytes 
+};
 
-/* pipes */
-extern int pipe_validator_fd;
-
-/* semaphores */
-extern sem_t *g_sem_pool_empty; // counts how many empty slots
-extern sem_t *g_sem_pool_full;  // transaction pool is full
-extern sem_t *g_sem_pool_mutex; // transaction pool mutex 
-
-/* shared memory */
-extern TransactionPool *g_shmem_pool_data;
-extern BlockInfo *g_shmem_blockchain_data;
-/* does this need to be extern? */
-extern int g_shmem_pool_fd; 
-extern int g_shmem_blockchain_fd;
-
+extern struct config_t config;
+extern struct global_t global;
 extern _Atomic sig_atomic_t shutdown;
 extern _Atomic sig_atomic_t sigint_received;
 
 /*=======================
    FUNCTION DEFINITIONS  
   ======================= */
-void c_cleanup();       // general cleanup function
+void c_cleanup_globals();
 
 /* Controller */
-int  c_ctrl_init();     // intialize controller       
-int  c_ctrl_import_config(const char* path);
+int  c_ctrl_init();     // intialize both controller and all global vaiables       
+int  c_ctrl_import_config(const char* path, struct config_t *dest);
 void c_ctrl_cleanup(); // controller specific cleanup
 void c_ctrl_handle_sigint();
 
@@ -163,7 +162,7 @@ PoWResult c_pow_proofofwork(TransactionBlock *tb);
   ======================= */
 
 static inline void c_logputs(const char* string) {
-  assert(g_logfile_fptr && string);
+  assert(string);
 
   time_t now = time(NULL);
   struct tm tm_info;
@@ -178,10 +177,10 @@ static inline void c_logputs(const char* string) {
   fputs(string,     stdout);
   fflush(stdout);
 
-  if (g_logfile_fptr) {
-    fputs(timestamp,  g_logfile_fptr);
-    fputs(string,     g_logfile_fptr);
-    fflush(g_logfile_fptr);
+  if (global.logfile_fptr) {
+    fputs(timestamp,  global.logfile_fptr);
+    fputs(string,     global.logfile_fptr);
+    fflush(global.logfile_fptr);
   }
 
   // pthread_mutex_unlock(&g_logfile_mutex);

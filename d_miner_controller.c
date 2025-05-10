@@ -3,56 +3,59 @@
 
 typedef struct MinerThreadArgs {
   int id;
+  int pipe_validator_fd;
 } MinerThreadArgs;
 
-unsigned int i = 0, created_threads = 0;
-pthread_t *mc_threads;
-int *id_array;
-unsigned int uid = 0;
+typedef struct {
+  pthread_t *mc_threads;    // 8 bytes, pointer to thread array
+  MinerThreadArgs *args_array; // 8 bytes, pointer to id array
+  uint32_t created_threads; // 4 bytes
+  uint32_t miners_max;      // 4 byes
+} mc_vars_t;
 
 
-void* miner_thread(void* id_ptr) {
-  int id = *( (int*) id_ptr );
+void* miner_thread(void* recv) {
 
+  MinerThreadArgs args = *((MinerThreadArgs*) recv);
+
+  uint32_t uid = 0;
   unsigned int transaction_n = 0;
-  int pool_size = g_pool_size;
-  TransactionPool *pool_ptr = g_shmem_pool_data; 
-
+  TransactionPool *pool_ptr = global.shmem_pool_data; 
   TransactionBlock transaction_block = calloc(1, SIZE_BLOCK); 
   BlockInfo   *new_block = transaction_block;
   Transaction *transaction_array = transaction_block+sizeof(BlockInfo);
 
   while (shutdown == 0) {
 
-    if (sem_trywait(g_sem_pool_full) == 0) {
+    if (sem_trywait(global.sem_pool_full) == 0) {
 
       #ifdef DEBUG
-      c_logprintf("[Miner Thread %d] Waiting...\n", id);
+      puts("[Miner Thread %d] Waiting...\n", args.id);
       #endif
       if (shutdown == 1)
         break;
 
-      // sem_wait(g_sem_pool_mutex);
+      // sem_wait(global.sem_pool_mutex);
       if (shutdown == 1) break;
 
       /* Find Transaction */
-      for (unsigned i = pool_size-1; i > 1 ; i--) {
+      for (uint32_t i = config.pool_size-1; i > 1 ; i--) {
         if (pool_ptr[i].empty == 1) {
           // pool_ptr[i].empty = 0;
           #ifdef DEBUG
-          c_logprintf("[Miner Thread %d] Grabbing transaction from slot: %d\n", id, i);
+          puts("[Miner Thread %d] Grabbing transaction from slot: %d\n", args.id, i);
           #endif
           transaction_array[transaction_n] = pool_ptr[i].tx;
           transaction_n++;
           break;
         }
       }
-      // sem_post(g_sem_pool_mutex);
+      // sem_post(global.sem_pool_mutex);
 
       /* If transaction_array is full, send new block to validator */
-      if (transaction_n == g_transactions_per_block) {
+      if (transaction_n == config.transactions_per_block) {
 
-        uint32_t input = id+uid;
+        uint32_t input = args.id+uid;
         uid++;
 
         SHA256( (void*) &input, sizeof(uint32_t), &new_block->txb_id[0]);
@@ -63,14 +66,14 @@ void* miner_thread(void* id_ptr) {
         unsigned char data_send[SIZE_BLOCK];
         memset(data_send, 0, SIZE_BLOCK);
         memcpy(data_send, transaction_block, SIZE_BLOCK);
-        write(pipe_validator_fd, data_send, SIZE_BLOCK);
+        write(args.pipe_validator_fd, data_send, SIZE_BLOCK);
 
-        c_logprintf("[Miner Thread %d] Wrote a block to validator.\n", id);
+        c_logprintf("[Miner Thread %d] Wrote a block to validator.\n", args.id);
         transaction_n = 0;
       }
 
 
-      sem_post(g_sem_pool_empty);
+      sem_post(global.sem_pool_empty);
     } else if (errno == EAGAIN) {
       sleep(1);
     } else {
@@ -80,44 +83,9 @@ void* miner_thread(void* id_ptr) {
 
   }
 
-  c_logprintf("[Miner Thread %d] Exiting thread.\n", id);
+  c_logprintf("[Miner Thread %d] Exiting thread.\n", args.id);
   free(transaction_block);
   pthread_exit(NULL);
-}
-
-void mc_cleanup() {
-  shutdown = 1; // Ensure threads exit
-
-#ifdef DEBUG
-  puts("[DEBUG] [Miner controller] Sending shutdown signal");
-#endif
-
-  for (i = 0; i < created_threads; i++) {
-    sem_post(g_sem_pool_full); // Unblock sem_wait
-    sem_post(g_sem_pool_empty);
-  }
-
-#ifdef DEBUG
-  puts("[DEBUG] [Miner controller] Joining threads.");
-#endif
-
-  /* Clean up threads */
-  for (unsigned i = 0; i < created_threads; i++) {
-    if (mc_threads[i]) {
-      pthread_join(mc_threads[i], NULL);
-    }
-  }
-
-#ifdef DEBUG
-  puts("[DEBUG] [Miner controller] Freeing resources");
-#endif
-
-  if (pipe_validator_fd >= 0)
-    close(pipe_validator_fd);
-
-  free(mc_threads);
-  free(id_array);
-  c_cleanup(); // Cleanup semaphores/shared memory
 }
 
 void mc_handle_sigint(int sig) {
@@ -132,45 +100,57 @@ void mc_handle_sigint(int sig) {
 /* Function Declarations */
 void c_mc_main(unsigned int miners_max) {
 
-  mc_threads  = malloc(sizeof(pthread_t) * miners_max );
-  id_array    = malloc(sizeof(int) * miners_max );
+  mc_vars_t vars = (mc_vars_t) {
+    .mc_threads = malloc(sizeof(pthread_t) * miners_max ),
+    .args_array   = malloc(sizeof(MinerThreadArgs) * miners_max ),
+    .created_threads = 0,
+    .miners_max = miners_max
+  };
 
-  pipe_validator_fd = open(PIPE_VALIDATOR, O_WRONLY);
+  int pipe_validator_fd = open(PIPE_VALIDATOR, O_WRONLY);
 
   /* Create Miner Threads */
-  for (i = 0; i < miners_max; i++) {
-    id_array[i] = i+1;
-    if (pthread_create(&mc_threads[i], NULL, miner_thread, &id_array[i]) != 0) {
+  for (uint32_t i = 0; i < miners_max; i++) {
+    vars.args_array[i] = (MinerThreadArgs) {i+1, pipe_validator_fd};
+    if (pthread_create(&vars.mc_threads[i], NULL, miner_thread, (void*) &vars.args_array[i]) != 0) {
       perror("pthread_create failed");
       break; // Stop creating threads on failure
     }
-    created_threads++;
+    vars.created_threads++;
   }
 
-  // Set up signal handler
   struct sigaction sa;
   sa.sa_handler = mc_handle_sigint;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = 0;
   sigaction(SIGINT, &sa, NULL);
 
-#ifdef DEBUG
-  puts("[DEBUG] [Miner controller] Entering main loop");
-#endif
+  c_logputs("[Miner controller] Started successfully.\n");
 
-  // Wait for shutdown signal
+  /* Wait for shutdown signal */
   while (!sigint_received) {
     pause();
   }
 
-#ifdef DEBUG
-  puts("[DEBUG] [Miner controller] Starting cleanup");
-#endif
+  shutdown = 1; // Ensure threads exit
 
-  mc_cleanup();
+  /* Send shutdown signal */
+  for (uint32_t i = 0; i < vars.created_threads; i++) {
+    sem_post(global.sem_pool_full); // Unblock sem_wait
+    sem_post(global.sem_pool_empty);
+  }
 
-#ifdef DEBUG
-  puts("[DEBUG] [Miner controller] Exit complete");
-#endif
-  exit(0);
+  /* Clean up threads */
+  for (uint32_t i = 0; i < vars.created_threads; i++) {
+    if (vars.mc_threads[i]) {
+      pthread_join(vars.mc_threads[i], NULL);
+    }
+  }
+
+  if (vars.mc_threads) free(vars.mc_threads);
+  if (vars.args_array) free(vars.args_array);
+
+  c_cleanup_globals(); 
+  c_logputs("[Miner controller] Exit successful.\n");
+  exit(EXIT_SUCCESS);
 }

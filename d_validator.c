@@ -5,18 +5,9 @@
 int running = 1;
 
 void val_cleanup(int retv) {
-  if (pipe_validator_fd < 0) {
-    close(pipe_validator_fd);
-  }
-
-  c_cleanup();
-
-  if (retv == 0) {
-    puts("Validator: Exited successfully!\n");
-    exit(EXIT_SUCCESS);
-  }
-  puts("Validator: FAILED!\n");
-  exit(EXIT_FAILURE);
+  c_cleanup_globals();
+  puts((retv == 0) ? "Validator: Exited successfully!\n" : "Validator: FAILED!\n");
+  exit(retv);
 }
 
 void val_handle_signit(int sig) {
@@ -27,18 +18,7 @@ void val_handle_signit(int sig) {
 
 void c_val_main() {
 
-  struct mq_attr sets = {
-    .mq_flags = 0,
-    .mq_maxmsg = 10,
-    .mq_msgsize = sizeof(MinerBlockInfo),
-    .mq_curmsgs = 0
-  };
-
-  StatsQueue = mq_open(QUEUE_NAME, O_CREAT | O_RDWR, 0666, &sets);
-  if (StatsQueue == (mqd_t)-1) {
-    perror("Queue_open");
-    val_cleanup(EXIT_FAILURE);
-  }
+  assert(global.mq_statistics != (mqd_t)-1);
 
   struct sigaction sa;
   sa.sa_handler = val_handle_signit;
@@ -47,15 +27,15 @@ void c_val_main() {
   sigaction(SIGINT, &sa, NULL);
 
   /* Open pipe (not blocking to check errors) */
-  pipe_validator_fd = open(PIPE_VALIDATOR, O_RDONLY | O_NONBLOCK);
+  int pipe_validator_fd = open(PIPE_VALIDATOR, O_RDONLY | O_NONBLOCK);
   if (pipe_validator_fd < 0) {
     puts("Validator: Failed to open FIFO\n");
     val_cleanup(1);
   }
   close(pipe_validator_fd);
 
+  /* Open pipe for real this time */
   pipe_validator_fd = open(PIPE_VALIDATOR, O_RDONLY );
-
   unsigned char data_recieved[SIZE_BLOCK];
   TransactionBlock block_recieved = (void*) data_recieved;
   BlockInfo *block_info = (BlockInfo*) block_recieved;
