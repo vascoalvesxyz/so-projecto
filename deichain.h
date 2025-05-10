@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <string.h>
 #include <mqueue.h> 
+#include <stdarg.h>
 
 /*=======================
           MACROS  
@@ -40,23 +41,10 @@
 #define PIPE_MESSAGE_SIZE     SIZE_BLOCK
 #define POW_MAX_OPS 10000000
 #define INITIAL_HASH \
-  "00006a8e76f31ba74e21a092cca1015a418c9d5f4375e7a4fec676e1d2ec1436"
+"00006a8e76f31ba74e21a092cca1015a418c9d5f4375e7a4fec676e1d2ec1436"
 
 #define HASH_SIZE 32
 #define HASH_STRING_SIZE 65
-
-/* TODO: Replace sprintf with snprintf */
-#define c_logprintf(...)\
-        sprintf(_buf, __VA_ARGS__);\
-        c_logputs(_buf)
-
-/* Print semaphore macro (debug only) */
-#ifdef DEBUG
-#define PRINT_SEM(NAME, sem)\
-    if (sem_getvalue(sem, &_macro_buf) == 0) {\
-        printf("[DEBUG] [TxGen] SEMAPHORE %s = %d\n", NAME, _macro_buf);\
-    } else { perror("sem_getvalue failed"); }
-#endif /* ifdef DEBUG */
 
 /*=======================
   STRUCTS, TYPES & ENUMS  
@@ -112,10 +100,10 @@ typedef struct {
 /*=======================
      GLOBAL VARIABLES  
   ======================= */
-extern char _buf[512];
 extern FILE *g_logfile_fptr;
 extern pthread_mutex_t g_logfile_mutex;
 extern mqd_t StatsQueue;
+
 /* Configuration */
 extern unsigned int g_miners_max;                   // number of miners (number of threads in the miner process)
 extern unsigned int g_pool_size;                    // number of slots on the transaction pool
@@ -144,7 +132,6 @@ extern _Atomic sig_atomic_t sigint_received;
 /*=======================
    FUNCTION DEFINITIONS  
   ======================= */
-void c_logputs(const char* string);
 void c_cleanup();       // general cleanup function
 
 /* Controller */
@@ -170,5 +157,55 @@ int  c_pow_getmaxreward(TransactionBlock tb);
 int  c_pow_checkdifficulty(hash_t *hash, int reward);
 int  c_pow_verify_nonce(TransactionBlock tb);
 PoWResult c_pow_proofofwork(TransactionBlock *tb);
+
+/*=======================
+   FUNCTION DEFINITIONS  
+  ======================= */
+
+static inline void c_logputs(const char* string) {
+  assert(g_logfile_fptr && string);
+
+  time_t now = time(NULL);
+  struct tm tm_info;
+  localtime_r(&now, &tm_info);  // thread-safe time conversion
+
+  char timestamp[32];
+  strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S] ", &tm_info);
+
+  // pthread_mutex_lock(&g_logfile_mutex);
+
+  fputs(timestamp,  stdout);
+  fputs(string,     stdout);
+  fflush(stdout);
+
+  if (g_logfile_fptr) {
+    fputs(timestamp,  g_logfile_fptr);
+    fputs(string,     g_logfile_fptr);
+    fflush(g_logfile_fptr);
+  }
+
+  // pthread_mutex_unlock(&g_logfile_mutex);
+}
+
+static inline void c_logprintf(const char *fmt, ...) {
+  char _buf[1024];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(_buf, sizeof(_buf), fmt, args);
+  va_end(args);
+  c_logputs(_buf);
+}
+
+#ifdef DEBUG
+static inline void print_semaphore(const char *name, sem_t *sem) {
+  int value;
+  if (sem_getvalue(sem, &value) == 0) {
+    printf("[DEBUG] SEMAPHORE %s = %d\n", name, value);
+  } else {
+    perror("sem_getvalue failed");
+  }
+}
+#define PRINT_SEM(NAME, SEM) print_semaphore(NAME, SEM)
+#endif
 
 #endif // !_CONTROLLER_H_

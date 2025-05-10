@@ -10,6 +10,7 @@ pthread_t *mc_threads;
 int *id_array;
 unsigned int uid = 0;
 
+
 void* miner_thread(void* id_ptr) {
   int id = *( (int*) id_ptr );
 
@@ -24,8 +25,10 @@ void* miner_thread(void* id_ptr) {
   while (shutdown == 0) {
 
     if (sem_trywait(g_sem_pool_full) == 0) {
-      // Successfully decremented semaphore
-      printf("[Miner Thread %d] Waiting...\n", id);
+
+      #ifdef DEBUG
+      c_logprintf("[Miner Thread %d] Waiting...\n", id);
+      #endif
       if (shutdown == 1)
         break;
 
@@ -36,7 +39,9 @@ void* miner_thread(void* id_ptr) {
       for (unsigned i = pool_size-1; i > 1 ; i--) {
         if (pool_ptr[i].empty == 1) {
           // pool_ptr[i].empty = 0;
-          printf("[Miner Thread %d] Grabbing transaction from slot: %d\n", id, i);
+          #ifdef DEBUG
+          c_logprintf("[Miner Thread %d] Grabbing transaction from slot: %d\n", id, i);
+          #endif
           transaction_array[transaction_n] = pool_ptr[i].tx;
           transaction_n++;
           break;
@@ -54,16 +59,13 @@ void* miner_thread(void* id_ptr) {
         new_block->timestamp = time(NULL);
         new_block->nonce = 0;
 
-
-        puts("[FYI] The proof is not working");
-
         /* Serialize memory in heap and write */
         unsigned char data_send[SIZE_BLOCK];
         memset(data_send, 0, SIZE_BLOCK);
         memcpy(data_send, transaction_block, SIZE_BLOCK);
         write(pipe_validator_fd, data_send, SIZE_BLOCK);
 
-        printf("[Miner Thread %d] WROTE A BLOCK TO VALIDATOR\n", id);
+        c_logprintf("[Miner Thread %d] Wrote a block to validator.\n", id);
         transaction_n = 0;
       }
 
@@ -78,9 +80,8 @@ void* miner_thread(void* id_ptr) {
 
   }
 
-  printf("[Miner Thread %d] Shutdown set to 0, exiting thread.\n", id);
+  c_logprintf("[Miner Thread %d] Exiting thread.\n", id);
   free(transaction_block);
-  // mc_threads[id-1] = NULL; // ?
   pthread_exit(NULL);
 }
 
@@ -100,7 +101,7 @@ void mc_cleanup() {
   puts("[DEBUG] [Miner controller] Joining threads.");
 #endif
 
-  // Clean up threads
+  /* Clean up threads */
   for (unsigned i = 0; i < created_threads; i++) {
     if (mc_threads[i]) {
       pthread_join(mc_threads[i], NULL);

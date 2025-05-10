@@ -3,13 +3,25 @@ FLAGS := -O2 -Wall -Wextra -Werror
 DEBUG := -g -DDEBUG 
 LINKS := -z noexecstack -lpthread -lrt -lcrypto
 SRC := d_pow.c d_statistics.c d_validator.c d_miner_controller.c deichain.c
+OBJS := $(SRC:.c=.o)
+TXGEN_SRC := transaction-generator.c
+TXGEN_OBJ := $(TXGEN_SRC:.c=.o)
 
-.PHONY: install
+.PHONY: all
 
-install:
-	${CC} ${FLAGS} ${SRC} -o deichain ${LINKS}
-	${CC} ${FLAGS} transaction-generator.c -o TxGen  ${LINKS}
+all: deichain TxGen clean 
 
-debug:
-	${CC} ${DEBUG} ${FLAGS} ${SRC} -o deichain ${LINKS}
-	${CC} ${DEBUG} ${FLAGS} transaction-generator.c -o TxGen ${LINKS}
+debug: FLAGS += $(DEBUG)
+debug: all
+
+deichain: $(OBJS)
+	$(CC) $(FLAGS) $^ -o deichain $(LINKS)
+
+TxGen: $(TXGEN_OBJ)
+	$(CC) $(FLAGS) $^ -o TxGen $(LINKS)
+
+%.o: %.c
+	$(CC) $(FLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJS) $(TXGEN_OBJ)

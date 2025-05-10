@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
 
         sem_wait(g_sem_empty);
         #ifdef DEBUG
-        PRINT_SEM("EMPTY", g_sem_empty)
+        PRINT_SEM("EMPTY", g_sem_empty);
         #endif
 
         sem_wait(g_sem_mutex);
@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
         sem_post(g_sem_mutex);
 
         #ifdef DEBUG
-        PRINT_SEM("FULL", g_sem_full)
+        PRINT_SEM("FULL", g_sem_full);
         #endif
         sem_post(g_sem_full);
         sleep_ms(time_ms);

@@ -1,5 +1,6 @@
 //Vasco Alves 2022228207 Joao Neto 2023234004
 #include "deichain.h"
+#include <stdlib.h>
 
 int running = 1;
 
@@ -36,7 +37,7 @@ void c_val_main() {
   StatsQueue = mq_open(QUEUE_NAME, O_CREAT | O_RDWR, 0666, &sets);
   if (StatsQueue == (mqd_t)-1) {
     perror("Queue_open");
-    exit(1);
+    val_cleanup(EXIT_FAILURE);
   }
 
   struct sigaction sa;
@@ -68,16 +69,14 @@ void c_val_main() {
       break;
     }
 
-    printf("Read %ld out of %ld\n", count, SIZE_BLOCK);
-
     if (count < SIZE_BLOCK) {
-      puts("READ ERROR");
+      c_logputs("[Validator] READ ERROR");
       continue;
     }
 
     c_pow_hash_to_string(block_info->txb_id, hashstring);
-    printf("[Validator] RECEIVED BLOCK ID = %s\n", hashstring);
+    c_logprintf("[Validator] RECEIVED NEW BLOCK ID = %s\n", hashstring);
   }
 
-  val_cleanup(0);
+  val_cleanup(EXIT_SUCCESS);
 }

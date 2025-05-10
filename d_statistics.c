@@ -1,38 +1,67 @@
 #include "deichain.h"
+#include <mqueue.h>
+
+/* Anonymous struct for passing variables
+ * from the main functions' stack */
+typedef struct {
+  struct mq_attr mq_sets;
+} stat_vars_t;
+
+static void s_init(stat_vars_t *vars); // Initialize variavles
+static void s_handle_sigint();      
+
+static void s_init(stat_vars_t *vars) {
+
+  struct mq_attr mq_settings = {
+    .mq_flags = 0,
+    .mq_maxmsg = 10,
+    .mq_msgsize = sizeof(MinerBlockInfo),
+    .mq_curmsgs = 0
+  };
+
+  vars->mq_sets = mq_settings;
+}
+
+static void s_handle_sigint() {
+  shutdown = 1;
+}
 
 void c_stat_main() {
-    //Gerar Estatisticas
-    // E escrever antes de acabar a simulação (Isto é a simulação acaba e enquanto fecha)
-    struct mq_attr sets = {
-        .mq_flags = 0,
-     .mq_maxmsg = 10,
-        .mq_msgsize = sizeof(MinerBlockInfo),
-        .mq_curmsgs = 0
-    };
-    StatsQueue = mq_open(QUEUE_NAME, O_CREAT | O_RDWR, 0666, &sets);
-    if (StatsQueue == (mqd_t)-1) {
-        perror("Queue_open");
-        exit(1);
-    }
-    void handle_signit() {
-        
-        puts("STATISTICS: EXITED SUCCESSFULLY!\n");
-       
-        c_cleanup();
-        exit(EXIT_SUCCESS);
-        
 
-    }
-    
-    
-    signal(SIGINT, handle_signit);
+  /* Initialize stat variavles */  
+  stat_vars_t vars;
+  s_init(&vars);
 
-    while (1) {
-    MinerBlockInfo info;
-    ssize_t bytes = mq_receive(StatsQueue,(char*)&info, sizeof(MinerBlockInfo), NULL);
-    if (bytes > -1){ 
-      printf("I have received\n");
-    }
+  struct sigaction sa;
+  sa.sa_handler = s_handle_sigint;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
+  sigaction(SIGINT, &sa, NULL);
 
+  StatsQueue = mq_open(QUEUE_NAME, O_CREAT | O_RDWR, 0666, &vars.mq_sets);
+
+  if (StatsQueue == (mqd_t)-1) {
+    puts("[Statistics] mq_open failed ");
+    exit(EXIT_FAILURE);
   }
+
+  MinerBlockInfo info;
+
+  while (shutdown == 0) {
+    if (mq_receive(StatsQueue, (char*)&info, sizeof(MinerBlockInfo), NULL) < 0) {
+      if (shutdown != 0) break;
+
+      if (errno == EINTR) {
+        continue;
+      }
+
+      puts("mq_receive");
+    }
+
+    printf("I have received\n");
+  }
+
+  /* Cleanup after exiting loop */
+  c_logputs("[Statistics]: Exited Successfully!");
+  exit(EXIT_SUCCESS);
 }
