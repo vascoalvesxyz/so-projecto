@@ -166,6 +166,8 @@ int main(int argc, char *argv[]) {
                 transaction_n++; // increment transaction counter
                 break;
             }
+            if(i== pool_size-1)
+            printf("End of pool\n");
         }
         sem_post(g_sem_mutex);
 

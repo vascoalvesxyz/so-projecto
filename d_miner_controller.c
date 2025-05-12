@@ -28,7 +28,7 @@ void* miner_thread(void* recv) {
   while (shutdown == 0) {
 
     if (sem_trywait(global.sem_pool_full) == 0) {
-
+      sem_post(global.sem_pool_full);
       #ifdef DEBUG
       printf("[DEBUG] [Miner Thread %d] Waiting...\n", args.id);
       #endif
@@ -39,8 +39,17 @@ void* miner_thread(void* recv) {
       if (shutdown == 1) break;
 
       /* Find Transaction */
+      
       for (uint32_t i = config.pool_size-1; i > 1 ; i--) {
+        int same=0;
         if (pool_ptr[i].empty == 1) {
+          for(unsigned int j =0; j<transaction_n;j++){
+            if(c_pow_hash_equals(pool_ptr[i].tx.tx_id,transaction_array[j].tx_id)==0)
+            same =1;
+          }
+          if(same == 1){
+            continue;
+          }
           // pool_ptr[i].empty = 0;
           #ifdef DEBUG
           printf("[DEBUG] [Miner Thread %d] Grabbing transaction from slot: %d\n", args.id, i);
@@ -49,9 +58,11 @@ void* miner_thread(void* recv) {
           transaction_n++;
           break;
         }
+        if(i ==2)
+          printf("No where to mine\n");
       }
-      // sem_post(global.sem_pool_mutex);
-      sem_post(global.sem_pool_empty);
+      //sem_post(global.sem_pool_mutex);
+      //sem_post(global.sem_pool_empty);
 
       /* If transaction_array is full, send new block to validator */
       if (transaction_n == config.transactions_per_block) {
@@ -63,19 +74,23 @@ void* miner_thread(void* recv) {
         SHA256( (void*) &input, sizeof(uint32_t), &new_block->txb_id[0]);
         new_block->timestamp = time(NULL);
         new_block->nonce = 0;
-
+        memcpy(new_block->txb_id, &(args.id), sizeof(int));
+        //new_block->txb_id[sizeof(int)] = '-';
         /* Perform Proof of Work */
         PoWResult result = c_pow_proofofwork(transaction_block);
+        //
+        
 
         if (result.error == 0) {
+          
           c_logprintf("[Miner Thread %d] Proof of work completed in %lfms after %ld operations.\n", args.id, result.elapsed_time, result.operations );
 
           /* Serialize memory in heap and write */
           unsigned char data_send[SIZE_BLOCK];
           memset(data_send, 0, SIZE_BLOCK);
           memcpy(data_send, transaction_block, SIZE_BLOCK);
-          write(args.pipe_validator_fd, data_send, SIZE_BLOCK);
-
+          if(write(args.pipe_validator_fd, data_send, SIZE_BLOCK)< 0)
+            perror("Writing Pipe error");
           c_logprintf("[Miner Thread %d] Wrote a block to validator.\n", args.id);
         } else {
           c_logprintf("[Miner Thread %d] Wrote a block to validator.\n", args.id);

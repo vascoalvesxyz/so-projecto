@@ -14,7 +14,6 @@ void c_pow_hash_compute(TransactionBlock input, hash_t *output) {
   c_pow_block_serialize(input, data_serial);
 
   /* Clean buffer and write hash */
-  memset(output, 0, 32);
   SHA256(data_serial, SIZE_BLOCK, output);
 }
 
@@ -157,4 +156,13 @@ PoWResult c_pow_proofofwork(TransactionBlock *tb) {
   result.operations = block->nonce + 1;
 
   return result;
+}
+int c_pow_hash_equals(hash_t* hash1, hash_t* hash2){
+  hashstring_t temp[HASH_STRING_SIZE];
+  hashstring_t temp1[HASH_STRING_SIZE];
+  c_pow_hash_to_string(hash1, temp);
+  c_pow_hash_to_string(hash2, temp1);
+  return strcmp(temp, temp1);
+
+
 }

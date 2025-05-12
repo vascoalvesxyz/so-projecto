@@ -22,7 +22,7 @@
 #include <string.h>
 #include <mqueue.h> 
 #include <stdarg.h>
-
+#include <inttypes.h>
 /*=======================
           MACROS  
   ======================= */
@@ -82,7 +82,7 @@ typedef struct TransactionPool{
 } TransactionPool;
 
 typedef struct MinerBlockInfo{
-  hash_t miner_hash[HASH_SIZE]; // Hash of the previous block
+  int miner_id; // Hash of the previous block
   int valid_blocks;
   int invalid_blocks;
   time_t timestamp;                     // Time when block was created
@@ -156,11 +156,11 @@ int  c_pow_getmaxreward(TransactionBlock tb);
 int  c_pow_checkdifficulty(hash_t *hash, int reward);
 int  c_pow_verify_nonce(TransactionBlock tb);
 PoWResult c_pow_proofofwork(TransactionBlock *tb);
-
+int c_pow_hash_equals(hash_t* hash1, hash_t* hash2);
 /*=======================
    FUNCTION DEFINITIONS  
   ======================= */
-
+  
 static inline void c_logputs(const char* string) {
   assert(string);
 
