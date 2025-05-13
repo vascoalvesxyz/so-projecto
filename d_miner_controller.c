@@ -34,7 +34,6 @@ void* miner_thread(void* recv) {
       #endif
       if (shutdown == 1)
         break;
-
       // sem_wait(global.sem_pool_mutex);
       if (shutdown == 1) break;
 

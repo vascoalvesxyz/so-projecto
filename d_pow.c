@@ -132,7 +132,7 @@ PoWResult c_pow_proofofwork(TransactionBlock *tb) {
     c_pow_hash_compute(tb, hash);
 
     #ifdef DEBUG
-    printf("[POW] attempt %ld\n", block->nonce);
+    // printf("[POW] attempt %ld\n", block->nonce);
     #endif /* ifdef DEBUG */
 
     /* Check if hash is correct */
