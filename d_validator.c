@@ -46,13 +46,25 @@ void* val_thread_controller_thread(void* arg) {
   ValidatorThreadArgs args_array[MAX_VAL_THREADS];
 
   int sem_value;
+  sem_getvalue(global.sem_pool_full, &sem_value);
 
   puts("THREAD CONTROLLER THREAD ");
 
-  while (vars->desired_threads > 0) {
+  while (vars->desired_threads > 0 && shutdown == 0) {
+
+    /* Create new threads if needed */
+    if (vars->created_threads < vars->desired_threads) {
+      for (uint32_t new_id = vars->created_threads; vars->created_threads < vars->desired_threads; new_id++ ) {
+        args_array[new_id] = (ValidatorThreadArgs) {vars, new_id};
+        pthread_create(&vars->threads[new_id], NULL, validator_thread_func, (void*) &args_array[new_id]);
+        c_logprintf("[Validator] Created validator thread %d\n", new_id);
+        vars->created_threads++;
+      }
+    }
+
     /* Wait for pool to have transactions */
-  puts("THREAD CONTROLLER THREAD.... WAITING... ");
     sem_wait(global.sem_pool_full); // decrement 
+    if (vars->desired_threads == 0) break;
     sem_post(global.sem_pool_full); // increment immediately
 
     /* Adjust number of threads based on pool size */
@@ -71,15 +83,6 @@ void* val_thread_controller_thread(void* arg) {
       vars->desired_threads = 1;
     }
 
-    /* Create new threads if needed */
-    if (vars->created_threads < vars->desired_threads) {
-      for (uint32_t new_id = vars->created_threads; vars->created_threads < vars->desired_threads; new_id++ ) {
-        args_array[new_id] = (ValidatorThreadArgs) {vars, new_id};
-        pthread_create(&vars->threads[new_id], NULL, validator_thread_func, (void*) &args_array[new_id]);
-        c_logprintf("[Validator] Created validator thread %d\n", new_id);
-        vars->created_threads++;
-      }
-    }
   }
 
   for (uint32_t i = 0; i < vars->created_threads; i++) {
@@ -104,7 +107,7 @@ void* validator_thread_func(void* arg) {
 
   c_logprintf("[Validator-%u] Thread started\n", thread_id);
 
-  while (thread_id > vars->desired_threads) {
+  while (thread_id < vars->desired_threads && shutdown == 0) {
     ssize_t count = read(pipe_fd, block_received, SIZE_BLOCK);
 
     if (count == -1) {
@@ -190,6 +193,7 @@ void c_val_main() {
 
   /* Set vars */
   val_vars_t vars = { {0}, 0, 1, pipe_validator_fd};
+  vars.desired_threads = 1;
 
   /* Create validator controller thread */
   pthread_t  controller_thread;
