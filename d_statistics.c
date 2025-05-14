@@ -4,8 +4,24 @@
 
 static MinerBlockInfo* miner_stat_arr;
 
+static void s_dump_stats(){
+
+  for(uint32_t i = 0; i < config.miners_max; i++){
+    c_logprintf("Miner %d\n",miner_stat_arr[i].miner_id);
+    c_logprintf("Valid_blocks %d\n",miner_stat_arr[i].valid_blocks);
+    c_logprintf("invalid_blocks %d\n", miner_stat_arr[i].invalid_blocks);
+    c_logprintf("Avg Time %d\n", miner_stat_arr[i].timestamp/ (miner_stat_arr[i].total_blocks) );
+    c_logprintf("Total blocks %d\n", miner_stat_arr[i].total_blocks);
+
+  }
+}
+
 static void s_handle_sigint() {
   shutdown = 1;
+}
+
+static void s_handle_sigusr() {
+  s_dump_stats();
 }
 
 void c_stat_main() {
@@ -16,6 +32,12 @@ void c_stat_main() {
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = 0;
   sigaction(SIGINT, &sa, NULL);
+
+  struct sigaction sa2;
+  sa2.sa_handler = s_handle_sigusr;
+  sigemptyset(&sa2.sa_mask);
+  sa2.sa_flags = 0;
+  sigaction(SIGUSR1, &sa2, NULL);
 
   MinerBlockInfo info = {0};
   miner_stat_arr = (MinerBlockInfo*) calloc(config.miners_max+1, sizeof(MinerBlockInfo));
@@ -42,14 +64,9 @@ void c_stat_main() {
       miner_stat_arr[info.miner_id].timestamp += info.timestamp;
       miner_stat_arr[info.miner_id].total_blocks += info.total_blocks;
     }
-
-    #ifdef DEBUG
-    printf("I have received %d \n", info.miner_id);
-    printf("valid_blocks = %d\n", miner_stat_arr[info.miner_id].valid_blocks);
-    printf("invalid_blocks = %d\n", miner_stat_arr[info.miner_id].invalid_blocks);
-    printf("total_blocks = %d\n", miner_stat_arr[info.miner_id].total_blocks);
-    #endif /* ifdef DEBUG */
   }
+
+  s_dump_stats();
 
   /* Cleanup after exiting loop */
   free(miner_stat_arr);
