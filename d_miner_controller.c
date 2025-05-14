@@ -24,7 +24,7 @@ void* miner_thread(void* recv) {
   TransactionBlock transaction_block = calloc(1, SIZE_BLOCK); 
   BlockInfo   *new_block = transaction_block;
   Transaction *transaction_array = transaction_block+sizeof(BlockInfo);
-
+  //sem_post(global.sem_pool_full);
   while (shutdown == 0) {
 
     if (sem_trywait(global.sem_pool_full) == 0) {
@@ -57,8 +57,6 @@ void* miner_thread(void* recv) {
           transaction_n++;
           break;
         }
-        if(i ==2)
-          printf("No where to mine\n");
       }
       //sem_post(global.sem_pool_mutex);
       //sem_post(global.sem_pool_empty);

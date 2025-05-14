@@ -151,17 +151,21 @@ int main(int argc, char *argv[]) {
     while (1) {
         puts("[TxGen] Waiting...");
 
-        sem_wait(g_sem_empty);
+        //sem_wait(g_sem_empty);
         #ifdef DEBUG
         PRINT_SEM("EMPTY", g_sem_empty);
         #endif
 
-        sem_wait(g_sem_mutex);
+        if(sem_trywait(g_sem_empty) !=0)
+        continue;
         for (unsigned i = 0; i < pool_size ; i++) {
             /* Find empty transaction */
             if (pool_ptr[i].empty == 0) {
                 TransactionPool new_transaction = (TransactionPool) {transaction_generate(reward), 0, 1};
+                
+                sem_wait(g_sem_mutex);
                 pool_ptr[i] = new_transaction;
+                sem_post(g_sem_mutex);
                 printf("[TxGen] Inserting transaction in slot: %d\n", i);
                 transaction_n++; // increment transaction counter
                 break;
@@ -169,7 +173,6 @@ int main(int argc, char *argv[]) {
             if(i== pool_size-1)
             printf("End of pool\n");
         }
-        sem_post(g_sem_mutex);
 
         #ifdef DEBUG
         PRINT_SEM("FULL", g_sem_full);

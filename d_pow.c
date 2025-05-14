@@ -71,7 +71,7 @@ int c_pow_checkdifficulty(hash_t *hash, int reward) {
 
   int idx = 0;
   while (hashstring[idx++] == '0') {
-    zeros += 4;
+    zeros += 1;
   }
 
   /* At least minimum zeros must exist */
@@ -145,6 +145,7 @@ PoWResult c_pow_proofofwork(TransactionBlock *tb) {
     /* Increment nonce and try again */
     block->nonce++;
   }
+  
   /* Stop tracking time */
   result.elapsed_time = (double)(clock() - start) / CLOCKS_PER_SEC;
 

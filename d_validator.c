@@ -51,7 +51,6 @@ void* val_thread_controller_thread(void* arg) {
   puts("THREAD CONTROLLER THREAD ");
 
   while (vars->desired_threads > 0 && shutdown == 0) {
-
     /* Create new threads if needed */
     if (vars->created_threads < vars->desired_threads) {
       for (uint32_t new_id = vars->created_threads; vars->created_threads < vars->desired_threads; new_id++ ) {
@@ -61,28 +60,31 @@ void* val_thread_controller_thread(void* arg) {
         vars->created_threads++;
       }
     }
-
+    // printf("ITS WORKING\n");
     /* Wait for pool to have transactions */
-    sem_wait(global.sem_pool_full); // decrement 
+    if(sem_trywait(global.sem_pool_full)!=0){ // decrement 
+      sleep(1);
+      continue;
+      }
+    
     if (vars->desired_threads == 0) break;
     sem_post(global.sem_pool_full); // increment immediately
 
     /* Adjust number of threads based on pool size */
     sem_getvalue(global.sem_pool_full, &sem_value);
-
     /* 80% - 100% */
-    if (sem_value >= (uint32_t) config.transaction_pool_size * 0.80) {
+    if (sem_value >= (uint32_t) config.pool_size * 0.80) {
       vars->desired_threads = 3;
     } 
     /* 60%+ */
-    else if (sem_value >= (uint32_t) config.transaction_pool_size * 0.60) {
+    else if (sem_value >= (uint32_t) config.pool_size * 0.60) {
       vars->desired_threads = 2;
     }
     /* 40% */
-    else if (sem_value <= (uint32_t) config.transaction_pool_size * 0.40) {
+    else if (sem_value <= (uint32_t) config.pool_size * 0.40) {
       vars->desired_threads = 1;
     }
-
+    
   }
 
   for (uint32_t i = 0; i < vars->created_threads; i++) {
@@ -136,12 +138,18 @@ void* validator_thread_func(void* arg) {
       pool++) {
         if (memcmp(tx->tx_id, pool->tx.tx_id, HASH_SIZE) == 0) {
           if (sem_trywait(global.sem_pool_full) == 0) {
+            if(pool->empty ==0){
+            sem_post(global.sem_pool_full);
+            break;}
+            sem_wait(global.sem_pool_mutex);
             pool->empty = 0;
+            sem_post(global.sem_pool_mutex);
             printf("%ld\n", pool-global.shmem_pool_data);
             sem_post(global.sem_pool_empty);
             found = 1;
             break;
           }
+        sem_post(global.sem_pool_full);
         }
       }
       if (!found) {

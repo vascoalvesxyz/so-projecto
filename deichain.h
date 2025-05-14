@@ -39,7 +39,7 @@
 #define SHMEM_SIZE_POOL       sizeof(TransactionPool) * (config.pool_size+1)
 #define SHMEM_SIZE_BLOCKCHAIN SIZE_BLOCK * config.blockchain_blocks
 #define PIPE_MESSAGE_SIZE     SIZE_BLOCK
-#define POW_MAX_OPS 100000
+#define POW_MAX_OPS 30000 
 #define INITIAL_HASH \
 "00006a8e76f31ba74e21a092cca1015a418c9d5f4375e7a4fec676e1d2ec1436"
 
@@ -105,7 +105,6 @@ struct config_t {
   uint32_t pool_size;                    // number of slots on the transaction pool
   uint32_t transactions_per_block;       // number of transactions per block (will affect block size)
   uint32_t blockchain_blocks;            // maximum number of blocks that can be saved in the
-  uint32_t transaction_pool_size;        // Transactions in POOL
 };
 
 struct global_t {

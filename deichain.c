@@ -93,7 +93,6 @@ int c_ctrl_init() {
     puts("[ERROR] Failed to open log file.");
     return -1;
   }
-
   /* === Transaction Pool === */
   global.shmem_pool_fd = shm_open(SHMEM_PATH_POOL, O_CREAT | O_RDWR, 0666);
   if (global.shmem_pool_fd < 0) {
@@ -182,7 +181,7 @@ int c_ctrl_import_config(const char* path, struct config_t *dest) {
   int line = 0;
   char argument[256];
   char value[256];
-  char expected_arguments[5][64] = { "NUM_MINERS",  "POOL_SIZE",  "TRANSACTIONS_PER_BLOCK",  "BLOCKCHAIN_BLOCKS",  "TRANSACTION_POOL_SIZE"};
+  char expected_arguments[4][64] = { "NUM_MINERS",  "POOL_SIZE",  "TRANSACTIONS_PER_BLOCK",  "BLOCKCHAIN_BLOCKS"};
 
   /* Tem que seguir a exacta ordem */
   while (EOF != (fscanf_retvalue = fscanf(f_config, "%s - %s", argument, value)) ) {
@@ -226,9 +225,6 @@ int c_ctrl_import_config(const char* path, struct config_t *dest) {
           break;
         case 3:
           dest->blockchain_blocks = atoi(value);
-          break;
-        case 4:
-          dest->transaction_pool_size = atoi(value);
           break;
         default:
           break;
@@ -300,7 +296,6 @@ int main() {
         OPENSSL_INIT_NO_ATEXIT,        // Disable auto-cleanup
         NULL
   );
-
   /* Miner Controller */
   c_logputs("[Controller] Starting miner controller!\n");
   pid_mc = fork();
