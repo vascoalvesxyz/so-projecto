@@ -1,7 +1,7 @@
 //Vasco Alves 2022228207 Joao Neto 2023234004
 #include "deichain.h"
 #include <stdio.h>
-
+  
 void c_pow_block_serialize(TransactionBlock input, byte_t *serial) {
   memset(serial, 0, SIZE_BLOCK);
   memcpy(serial, (void*) input, SIZE_BLOCK);

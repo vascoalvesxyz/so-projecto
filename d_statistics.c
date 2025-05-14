@@ -46,7 +46,7 @@ void c_stat_main() {
   }
 
   MinerBlockInfo info;
-
+  MinerBlockInfo* miners= (MinerBlockInfo*)malloc(sizeof(MinerBlockInfo)*config.miners_max);
   while (shutdown == 0) {
     if (mq_receive(global.mq_statistics, (char*)&info, sizeof(MinerBlockInfo), NULL) < 0) {
       if (shutdown != 0) break;
@@ -57,8 +57,21 @@ void c_stat_main() {
 
       puts("mq_receive");
     }
-
-    printf("I have received\n");
+    MinerBlockInfo stats = (MinerBlockInfo) info;
+    
+    if( miners[stats.miner_id].miner_id != stats.miner_id){
+     miners[stats.miner_id]= stats;
+    }
+    else{
+    miners[stats.miner_id].valid_blocks+= stats.valid_blocks;
+    miners[stats.miner_id].invalid_blocks += stats.invalid_blocks;
+    miners[stats.miner_id].timestamp += stats.timestamp;
+    miners[stats.miner_id].total_blocks += stats.total_blocks;
+    }
+    printf("I have received %d \n", stats.miner_id);
+    printf("valid_blocks = %d\n", miners[stats.miner_id].valid_blocks);
+    printf("invalid_blocks = %d\n", miners[stats.miner_id].invalid_blocks);
+    printf("total_blocks = %d\n", miners[stats.miner_id].total_blocks);
   }
 
   /* Cleanup after exiting loop */

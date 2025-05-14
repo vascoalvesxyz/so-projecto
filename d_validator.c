@@ -167,7 +167,14 @@ void* validator_thread_func(void* arg) {
       .timestamp = block_info->timestamp,
       .total_blocks = 1
     };
-
+    if(pow_valid && tx_valid){
+    unsigned char *point =(unsigned char *)global.shmem_pool_data;
+    while(((BlockInfo*)point)->nonce !=0)
+    point += SIZE_BLOCK;
+    printf("nonce -> %ld \n", ((BlockInfo*)point)->nonce);
+    memcpy(global.shmem_blockchain_data, block_info, SIZE_BLOCK);
+    
+    }
     if (mq_send(global.mq_statistics, (char*)&stats_msg, sizeof(stats_msg), 0) < 0) {
       c_logprintf("[Validator-%u] Failed to send stats\n",
                   thread_id);

@@ -170,7 +170,7 @@ void c_mc_main(unsigned int miners_max) {
   }
 
   if (vars.mc_threads) free(vars.mc_threads);
-  if (vars.args_array) free(vars.args_array);
+  if(vars.args_array) free(vars.args_array);
 
   c_cleanup_globals(); 
   c_logputs("[Miner controller] Exit successful.\n");

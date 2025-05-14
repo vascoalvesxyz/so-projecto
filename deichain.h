@@ -109,7 +109,7 @@ struct config_t {
 
 struct global_t {
   mqd_t mq_statistics;
-
+  MinerBlockInfo* miners; 
   /* Shared Memory */
   TransactionPool *shmem_pool_data;       // 8 bytes
   BlockInfo       *shmem_blockchain_data; // 8 bytes

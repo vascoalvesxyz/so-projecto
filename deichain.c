@@ -14,7 +14,7 @@ _Atomic sig_atomic_t sigint_received = 0;
 static pid_t pid_mc;   // miner controller
 static pid_t pid_stat; // statistics
 static pid_t pid_val;  // transaction validator
-
+ 
 /* Controller specific functions */
 int  c_ctrl_init();
 int  c_ctrl_import_config(const char* path, struct config_t *dest);
@@ -127,12 +127,13 @@ int c_ctrl_init() {
     return 0;
   }
 
-  global.shmem_blockchain_data = mmap(NULL, SHMEM_SIZE_BLOCKCHAIN, PROT_READ | PROT_WRITE, MAP_SHARED, global.shmem_pool_fd, 0);
+  global.shmem_blockchain_data = mmap(NULL, SHMEM_SIZE_BLOCKCHAIN, PROT_READ | PROT_WRITE, MAP_SHARED, global.shmem_blockchain_fd, 0);
   if (global.shmem_blockchain_data == NULL) {
     puts("[Controller] Failed to allocate shared memory for blockchain.");
     return 0;
   }
-
+  
+  memset(global.shmem_blockchain_data, 0, SHMEM_SIZE_BLOCKCHAIN);
   /* Initialize  semaphores */
   global.sem_pool_empty = sem_open(SEM_POOL_EMPTY, O_CREAT, 0666, config.pool_size); 
   global.sem_pool_full  = sem_open(SEM_POOL_FULL, O_CREAT, 0666, 0); 
