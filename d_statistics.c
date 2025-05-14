@@ -23,9 +23,20 @@ static void s_init(stat_vars_t *vars) {
 }
 
 static void s_handle_sigint() {
+  c_dump_stats()
   shutdown = 1;
 }
+void s_dump_stats(){
+  for(int i=0; i < config.miners_max; i++){
+  c_logprintf("Miner %d\n",global.minerm[i].iner_id);
+  c_logprintf("Valid_blocks %d\n",global.miner[i].valid_blocks);
+  c_logprintf("invalid_blocks %d\n", global.miner[i].invalid_blocks);
+  c_logprintf("Avg Time %d\n", global.miner[i].timestamp/miner->total_blocks);
+  c_logprintf("Total blocks %d\n", global.miner[i].total_blocks);
 
+  }
+
+}
 void c_stat_main() {
 
   /* Initialize stat variavles */  
@@ -46,7 +57,7 @@ void c_stat_main() {
   }
 
   MinerBlockInfo info;
-  MinerBlockInfo* miners= (MinerBlockInfo*)malloc(sizeof(MinerBlockInfo)*config.miners_max);
+  global.miners= (MinerBlockInfo*)malloc(sizeof(MinerBlockInfo)*config.miners_max);
   while (shutdown == 0) {
     if (mq_receive(global.mq_statistics, (char*)&info, sizeof(MinerBlockInfo), NULL) < 0) {
       if (shutdown != 0) break;
@@ -60,20 +71,17 @@ void c_stat_main() {
     MinerBlockInfo stats = (MinerBlockInfo) info;
     
     if( miners[stats.miner_id].miner_id != stats.miner_id){
-     miners[stats.miner_id]= stats;
+     global.miners[stats.miner_id]= stats;
     }
     else{
-    miners[stats.miner_id].valid_blocks+= stats.valid_blocks;
-    miners[stats.miner_id].invalid_blocks += stats.invalid_blocks;
-    miners[stats.miner_id].timestamp += stats.timestamp;
-    miners[stats.miner_id].total_blocks += stats.total_blocks;
+    global.miners[stats.miner_id].valid_blocks+= stats.valid_blocks;
+    global.miners[stats.miner_id].invalid_blocks += stats.invalid_blocks;
+    global.miners[stats.miner_id].timestamp += stats.timestamp;
+    global.miners[stats.miner_id].total_blocks += stats.total_blocks;
     }
-    printf("I have received %d \n", stats.miner_id);
-    printf("valid_blocks = %d\n", miners[stats.miner_id].valid_blocks);
-    printf("invalid_blocks = %d\n", miners[stats.miner_id].invalid_blocks);
-    printf("total_blocks = %d\n", miners[stats.miner_id].total_blocks);
+    c_dump_stats(); 
   }
-
+  c_dump_stats();
   /* Cleanup after exiting loop */
   c_cleanup_globals();
   c_logputs("[Statistics]: Exited Successfully!\n");
