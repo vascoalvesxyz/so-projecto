@@ -82,7 +82,7 @@ typedef struct TransactionPool{
 } TransactionPool;
 
 typedef struct MinerBlockInfo{
-  time_t timestamp;       // 8 byes, Time when block was created
+  double  pow_time;
   int32_t miner_id;       // 4 bytes, Hash of the previous block
   int32_t valid_blocks;   // 4 bytes,
   int32_t invalid_blocks; // 4 bytes,

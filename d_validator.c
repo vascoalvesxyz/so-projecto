@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #define MAX_VAL_THREADS 3
+#define SIZE_BLOCK_PLUS_POW SIZE_BLOCK + sizeof(PoWResult)
 
 typedef struct {
   pthread_t threads[MAX_VAL_THREADS];
@@ -102,7 +103,7 @@ void* validator_thread_func(void* arg) {
   int pipe_fd = vars->pipe_fd;
   uint32_t thread_id = thread_args.thread_id;
 
-  unsigned char data_received[SIZE_BLOCK];
+  unsigned char data_received[SIZE_BLOCK_PLUS_POW];
   TransactionBlock block_received = (void*)data_received;
   BlockInfo* block_info = (BlockInfo*)block_received;
 
@@ -118,7 +119,7 @@ void* validator_thread_func(void* arg) {
 
   while (thread_id < vars->desired_threads && shutdown == 0) {
 
-    ssize_t count = read(pipe_fd, block_received, SIZE_BLOCK);
+    ssize_t count = read(pipe_fd, block_received, SIZE_BLOCK_PLUS_POW);
     if (shutdown != 0) break; // break in case pipe closes
 
     if (count == -1) {
@@ -168,6 +169,8 @@ void* validator_thread_func(void* arg) {
       }
     }
 
+    PoWResult powres = *((PoWResult*)(block_received + SIZE_BLOCK));
+
     // Send statistics
     MinerBlockInfo stats_msg;
     memset(&stats_msg, 0, sizeof(MinerBlockInfo));
@@ -175,7 +178,7 @@ void* validator_thread_func(void* arg) {
       .miner_id = *(int*) block_info->txb_id,
       .valid_blocks = (pow_valid && tx_valid) ? 1 : 0,
       .invalid_blocks = (pow_valid && tx_valid) ? 0 : 1,
-      .timestamp = block_info->timestamp,
+      .pow_time = powres.elapsed_time,
       .total_blocks = 1
     };
 

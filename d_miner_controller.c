@@ -74,18 +74,34 @@ void* miner_thread(void* recv) {
         new_block->nonce = 0;
 
         memcpy(new_block->txb_id, &(args.id), sizeof(int));
-        
+
+        for (uint32_t i = 0; i < config.blockchain_blocks; i++) {
+          
+          /* Found block */
+          if (global.shmem_blockchain_data[i].nonce == 0) {
+            if (i == 0) {
+              memcpy(new_block->previous_block_hash, new_block->txb_id, HASH_SIZE);
+            } else {
+              c_pow_hash_compute(&global.shmem_blockchain_data[i], new_block->previous_block_hash);
+            }
+            break;
+          }
+          
+        }  
 
         /* Perform Proof of Work */
         PoWResult result = c_pow_proofofwork(transaction_block);
         c_logprintf("[Miner Thread %d] Proof of work completed in %lfms after %ld operations.\n", args.id, result.elapsed_time, result.operations );
 
         /* Serialize memory in heap and write */
-        unsigned char data_send[SIZE_BLOCK];
-        memset(data_send, 0, SIZE_BLOCK);
-        memcpy(data_send, transaction_block, SIZE_BLOCK);
+        #define SIZE_BLOCK_PLUS_POW SIZE_BLOCK + sizeof(PoWResult)
 
-        if(write(args.pipe_validator_fd, data_send, SIZE_BLOCK) > 0) {
+        unsigned char data_send[SIZE_BLOCK_PLUS_POW];
+        memset(data_send, 0, SIZE_BLOCK_PLUS_POW);
+        memcpy(data_send, transaction_block, SIZE_BLOCK);
+        memcpy(data_send+SIZE_BLOCK, &result, sizeof(PoWResult));
+
+        if(write(args.pipe_validator_fd, data_send, SIZE_BLOCK_PLUS_POW) > 0) {
           c_logprintf("[Miner Thread %d] Wrote a block to validator.\n", args.id);
         }
 
@@ -129,7 +145,7 @@ void c_mc_main(unsigned int miners_max) {
 
   /* Create Miner Threads */
   for (uint32_t i = 0; i < miners_max; i++) {
-    vars.args_array[i] = (MinerThreadArgs) {i+1, pipe_validator_fd};
+    vars.args_array[i] = (MinerThreadArgs) {i, pipe_validator_fd};
     if (pthread_create(&vars.mc_threads[i], NULL, miner_thread, (void*) &vars.args_array[i]) != 0) {
       perror("pthread_create failed");
       break; // Stop creating threads on failure

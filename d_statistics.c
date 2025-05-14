@@ -1,19 +1,23 @@
 #include "deichain.h"
 #include <mqueue.h>
 #include <stdlib.h>
+#include <string.h>
 
 static MinerBlockInfo* miner_stat_arr;
 
 static void s_dump_stats(){
 
   for(uint32_t i = 0; i < config.miners_max; i++){
-    c_logprintf("Miner %d\n",miner_stat_arr[i].miner_id);
+    c_logprintf("Miner %d\n", i);
     c_logprintf("Valid_blocks %d\n",miner_stat_arr[i].valid_blocks);
     c_logprintf("invalid_blocks %d\n", miner_stat_arr[i].invalid_blocks);
-    c_logprintf("Avg Time %d\n", miner_stat_arr[i].timestamp/ (miner_stat_arr[i].total_blocks) );
-    c_logprintf("Total blocks %d\n", miner_stat_arr[i].total_blocks);
+    if (miner_stat_arr[i].total_blocks > 0) {
 
+      c_logprintf("Avg Time %lf ms \n", miner_stat_arr[i].pow_time / (miner_stat_arr[i].total_blocks) );
+    }
+    c_logprintf("Total blocks %d\n", miner_stat_arr[i].total_blocks);
   }
+
 }
 
 static void s_handle_sigint() {
@@ -40,8 +44,10 @@ void c_stat_main() {
   sigaction(SIGUSR1, &sa2, NULL);
 
   MinerBlockInfo info = {0};
-  miner_stat_arr = (MinerBlockInfo*) calloc(config.miners_max+1, sizeof(MinerBlockInfo));
-  memset(miner_stat_arr, 0, (config.miners_max+1) * sizeof(MinerBlockInfo));
+
+  size_t arr_size = (config.miners_max+1) * sizeof(MinerBlockInfo);
+  miner_stat_arr = malloc(arr_size);
+  memset(miner_stat_arr, 0, arr_size);
 
   while (shutdown == 0) {
 
@@ -61,7 +67,7 @@ void c_stat_main() {
     else{
       miner_stat_arr[info.miner_id].valid_blocks += info.valid_blocks;
       miner_stat_arr[info.miner_id].invalid_blocks += info.invalid_blocks;
-      miner_stat_arr[info.miner_id].timestamp += info.timestamp;
+      miner_stat_arr[info.miner_id].pow_time += info.pow_time;
       miner_stat_arr[info.miner_id].total_blocks += info.total_blocks;
     }
   }
@@ -70,6 +76,7 @@ void c_stat_main() {
 
   /* Cleanup after exiting loop */
   free(miner_stat_arr);
+
   c_cleanup_globals();
   c_logputs("[Statistics]: Exited Successfully!\n");
   exit(EXIT_SUCCESS);
