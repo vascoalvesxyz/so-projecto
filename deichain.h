@@ -82,11 +82,11 @@ typedef struct TransactionPool{
 } TransactionPool;
 
 typedef struct MinerBlockInfo{
-  int miner_id; // Hash of the previous block
-  int valid_blocks;
-  int invalid_blocks;
-  time_t timestamp;                     // Time when block was created
-  int total_blocks;
+  time_t timestamp;       // 8 byes, Time when block was created
+  int32_t miner_id;       // 4 bytes, Hash of the previous block
+  int32_t valid_blocks;   // 4 bytes,
+  int32_t invalid_blocks; // 4 bytes,
+  int32_t total_blocks;   // 4 bytes,
 } MinerBlockInfo;
 
 typedef struct {
@@ -109,7 +109,6 @@ struct config_t {
 
 struct global_t {
   mqd_t mq_statistics;
-  MinerBlockInfo* miners; 
   /* Shared Memory */
   TransactionPool *shmem_pool_data;       // 8 bytes
   BlockInfo       *shmem_blockchain_data; // 8 bytes
@@ -195,7 +194,6 @@ static inline void c_logprintf(const char *fmt, ...) {
   c_logputs(_buf);
 }
 
-#ifdef DEBUG
 static inline void print_semaphore(const char *name, sem_t *sem) {
   int value;
   if (sem_getvalue(sem, &value) == 0) {
@@ -205,6 +203,5 @@ static inline void print_semaphore(const char *name, sem_t *sem) {
   }
 }
 #define PRINT_SEM(NAME, SEM) print_semaphore(NAME, SEM)
-#endif
 
 #endif // !_CONTROLLER_H_

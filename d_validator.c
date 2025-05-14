@@ -6,7 +6,6 @@
 
 #define MAX_VAL_THREADS 3
 
-
 typedef struct {
   pthread_t threads[MAX_VAL_THREADS];
   uint32_t created_threads;
@@ -19,7 +18,6 @@ typedef struct {
   uint32_t thread_id; // Unique identifier for this validator thread
 } ValidatorThreadArgs ;
 
-
 void val_cleanup(int retv);
 void val_handle_signit(int sig);
 void* validator_thread_func(void* arg);
@@ -27,7 +25,7 @@ void* val_thread_controller_thread(void* arg);
 
 void val_cleanup(int retv) {
   c_cleanup_globals();
-  puts((retv == 0) ? "Validator: Exited successfully!\n" : "Validator: FAILED!\n");
+  c_logputs((retv == 0) ? "[Validator] Exited successfully!\n" : "[Validator] FAILED!\n");
   exit(retv);
 }
 
@@ -48,7 +46,7 @@ void* val_thread_controller_thread(void* arg) {
   int sem_value;
   sem_getvalue(global.sem_pool_full, &sem_value);
 
-  puts("THREAD CONTROLLER THREAD ");
+  c_logputs("[Validator Controller] Validator Controller Started\n");
 
   while (vars->desired_threads > 0 && shutdown == 0) {
     /* Create new threads if needed */
@@ -60,13 +58,13 @@ void* val_thread_controller_thread(void* arg) {
         vars->created_threads++;
       }
     }
-    // printf("ITS WORKING\n");
+    
     /* Wait for pool to have transactions */
     if(sem_trywait(global.sem_pool_full)!=0){ // decrement 
       sleep(1);
       continue;
-      }
-    
+    }
+
     if (vars->desired_threads == 0) break;
     sem_post(global.sem_pool_full); // increment immediately
 
@@ -84,13 +82,15 @@ void* val_thread_controller_thread(void* arg) {
     else if (sem_value <= (uint32_t) config.pool_size * 0.40) {
       vars->desired_threads = 1;
     }
-    
+
   }
 
   for (uint32_t i = 0; i < vars->created_threads; i++) {
     pthread_join(vars->threads[i], NULL);
   }
 
+  c_logputs("[Validator Controller] All Validators Joined\n");
+  c_logputs("[Validator Controller] Exiting\n");
   pthread_exit(NULL);
 }
 
@@ -105,15 +105,24 @@ void* validator_thread_func(void* arg) {
   unsigned char data_received[SIZE_BLOCK];
   TransactionBlock block_received = (void*)data_received;
   BlockInfo* block_info = (BlockInfo*)block_received;
+
   hashstring_t hashstring[HASH_STRING_SIZE];
 
-  c_logprintf("[Validator-%u] Thread started\n", thread_id);
+  c_logprintf("[Validator Thread  %u] Thread started\n", thread_id);
+
+  sem_wait(global.sem_pool_full);
+#ifdef DEBUG
+  printf("[DEBUG] [Validator Thread %u] thread Waiting", thread_id);
+#endif /* ifdef DEBUG */
+  sem_post(global.sem_pool_full);
 
   while (thread_id < vars->desired_threads && shutdown == 0) {
+
     ssize_t count = read(pipe_fd, block_received, SIZE_BLOCK);
+    if (shutdown != 0) break; // break in case pipe closes
 
     if (count == -1) {
-      c_logprintf("[Validator-%u] Read error: %s\n", thread_id, strerror(errno));
+      c_logprintf("[Validator Thread %u] Read error: %s\n", thread_id, strerror(errno));
       continue;
     }
 
@@ -121,7 +130,7 @@ void* validator_thread_func(void* arg) {
     c_pow_hash_to_string(block_info->txb_id, hashstring);
     int pow_valid = c_pow_verify_nonce(block_received);
 
-    c_logprintf("[Validator-%u] Block %.20s from miner %d: POW %s\n",
+    c_logprintf("[Validator Thread %u] Block %.20s from miner %d: POW %s\n",
                 thread_id, hashstring, 
                 *(int*)block_info->txb_id,
                 pow_valid ? "VALID" : "INVALID");
@@ -139,8 +148,8 @@ void* validator_thread_func(void* arg) {
         if (memcmp(tx->tx_id, pool->tx.tx_id, HASH_SIZE) == 0) {
           if (sem_trywait(global.sem_pool_full) == 0) {
             if(pool->empty ==0){
-            sem_post(global.sem_pool_full);
-            break;}
+              sem_post(global.sem_pool_full);
+              break;}
             sem_wait(global.sem_pool_mutex);
             pool->empty = 0;
             sem_post(global.sem_pool_mutex);
@@ -149,43 +158,48 @@ void* validator_thread_func(void* arg) {
             found = 1;
             break;
           }
-        sem_post(global.sem_pool_full);
+          sem_post(global.sem_pool_full);
         }
       }
       if (!found) {
         tx_valid = 0;
-        c_logprintf("[Validator-%u] Invalid TX\n", 
+        c_logprintf("[Validator Thread %u] Invalid TX\n", 
                     thread_id);
       }
     }
 
     // Send statistics
-    MinerBlockInfo stats_msg = {
-      .miner_id = *(int*)block_info->txb_id,
+    MinerBlockInfo stats_msg;
+    memset(&stats_msg, 0, sizeof(MinerBlockInfo));
+    stats_msg = (MinerBlockInfo) {
+      .miner_id = *(int*) block_info->txb_id,
       .valid_blocks = (pow_valid && tx_valid) ? 1 : 0,
       .invalid_blocks = (pow_valid && tx_valid) ? 0 : 1,
       .timestamp = block_info->timestamp,
       .total_blocks = 1
     };
+
     if(pow_valid && tx_valid){
-    unsigned char *point =(unsigned char *)global.shmem_pool_data;
-    while(((BlockInfo*)point)->nonce !=0)
-    point += SIZE_BLOCK;
-    printf("nonce -> %ld \n", ((BlockInfo*)point)->nonce);
-    memcpy(global.shmem_blockchain_data, block_info, SIZE_BLOCK);
-    
+      unsigned char *point =(unsigned char *)global.shmem_pool_data;
+      while(((BlockInfo*)point)->nonce !=0)
+        point += SIZE_BLOCK;
+
+      printf("nonce -> %ld \n", ((BlockInfo*)point)->nonce);
+
+      memcpy(global.shmem_blockchain_data, block_info, SIZE_BLOCK);
+
     }
     if (mq_send(global.mq_statistics, (char*)&stats_msg, sizeof(stats_msg), 0) < 0) {
-      c_logprintf("[Validator-%u] Failed to send stats\n",
+      c_logprintf("[Validator Thread %u] Failed to send stats\n",
                   thread_id);
     }
 
     if (!tx_valid) {
-      c_logprintf("[Validator-%u] Block contains invalid transactions\n", thread_id);
+      c_logprintf("[Validator Thread %u] Block contains invalid transactions\n", thread_id);
     }
   }
 
-  c_logprintf("[Validator-%u] Thread exiting\n", thread_id);
+  c_logprintf("[Validator Thread  %u] Thread exiting\n", thread_id);
   vars->created_threads--;
   pthread_exit(NULL);
 }
@@ -210,6 +224,8 @@ void c_val_main() {
   val_vars_t vars = { {0}, 0, 1, pipe_validator_fd};
   vars.desired_threads = 1;
 
+  c_logputs("[Validator] Starting validator controller...\n");
+
   /* Create validator controller thread */
   pthread_t  controller_thread;
   ValidatorThreadArgs controller_thread_args = (ValidatorThreadArgs) {&vars, 0};
@@ -217,6 +233,7 @@ void c_val_main() {
     close(pipe_validator_fd);
     val_cleanup(EXIT_FAILURE);
   }
+
 
   /* Handle Sigint */
   struct sigaction sa;
@@ -232,14 +249,10 @@ void c_val_main() {
     if (shutdown == 1) break;
   }
 
-  puts("Broke main loop");
-
   vars.desired_threads = 0;
   sem_post(global.sem_pool_full); // Unblock sem_wait
   sem_post(global.sem_pool_empty);
   pthread_join(controller_thread, NULL);
-
-  puts("Joined ");
 
   /* Clean up */
   close(pipe_validator_fd);

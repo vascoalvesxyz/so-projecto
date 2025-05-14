@@ -68,28 +68,24 @@ void* miner_thread(void* recv) {
         uint32_t input = args.id+uid;
         uid++;
 
+        /* Hash id */
         SHA256( (void*) &input, sizeof(uint32_t), &new_block->txb_id[0]);
         new_block->timestamp = time(NULL);
         new_block->nonce = 0;
+
         memcpy(new_block->txb_id, &(args.id), sizeof(int));
-        //new_block->txb_id[sizeof(int)] = '-';
-        /* Perform Proof of Work */
-        PoWResult result = c_pow_proofofwork(transaction_block);
-        //
         
 
-        if (result.error == 0) {
-          
-          c_logprintf("[Miner Thread %d] Proof of work completed in %lfms after %ld operations.\n", args.id, result.elapsed_time, result.operations );
+        /* Perform Proof of Work */
+        PoWResult result = c_pow_proofofwork(transaction_block);
+        c_logprintf("[Miner Thread %d] Proof of work completed in %lfms after %ld operations.\n", args.id, result.elapsed_time, result.operations );
 
-          /* Serialize memory in heap and write */
-          unsigned char data_send[SIZE_BLOCK];
-          memset(data_send, 0, SIZE_BLOCK);
-          memcpy(data_send, transaction_block, SIZE_BLOCK);
-          if(write(args.pipe_validator_fd, data_send, SIZE_BLOCK)< 0)
-            perror("Writing Pipe error");
-          c_logprintf("[Miner Thread %d] Wrote a block to validator.\n", args.id);
-        } else {
+        /* Serialize memory in heap and write */
+        unsigned char data_send[SIZE_BLOCK];
+        memset(data_send, 0, SIZE_BLOCK);
+        memcpy(data_send, transaction_block, SIZE_BLOCK);
+
+        if(write(args.pipe_validator_fd, data_send, SIZE_BLOCK) > 0) {
           c_logprintf("[Miner Thread %d] Wrote a block to validator.\n", args.id);
         }
 

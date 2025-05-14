@@ -1,5 +1,6 @@
 #include "deichain.h"
 #include <openssl/crypto.h>
+#include <stdio.h>
 
 //Vasco Alves 2022228207
 //Joao Neto 2023234004
@@ -135,12 +136,15 @@ int c_ctrl_init() {
   
   memset(global.shmem_blockchain_data, 0, SHMEM_SIZE_BLOCKCHAIN);
   /* Initialize  semaphores */
+  assert(config.pool_size > 0);
   global.sem_pool_empty = sem_open(SEM_POOL_EMPTY, O_CREAT, 0666, config.pool_size); 
   global.sem_pool_full  = sem_open(SEM_POOL_FULL, O_CREAT, 0666, 0); 
   global.sem_pool_mutex = sem_open(SEM_POOL_MUTEX, O_CREAT, 0666, 1); 
-  sem_init(global.sem_pool_empty, 0, config.pool_size);
-  sem_init(global.sem_pool_full,  0, 0);
-  sem_init(global.sem_pool_mutex, 0, 1);
+  PRINT_SEM("EMPTY", global.sem_pool_empty);
+  
+  // sem_init(global.sem_pool_empty, 0, config.pool_size);
+  // sem_init(global.sem_pool_full,  0, 0);
+  // sem_init(global.sem_pool_mutex, 0, 1);
 
   if (global.sem_pool_empty == SEM_FAILED || global.sem_pool_full == SEM_FAILED || global.sem_pool_mutex == SEM_FAILED) {
     puts("[Controller] Failed to create semaphores");
@@ -175,6 +179,7 @@ int c_ctrl_import_config(const char* path, struct config_t *dest) {
     return -1;
 
   /* Write config to zeros */
+  memset((void*) &global, 0, sizeof(struct global_t));
   memset(dest, 0, sizeof(struct config_t));
 
   int fscanf_retvalue = 0;
@@ -336,7 +341,7 @@ int main() {
   c_ctrl_cleanup();
   exit(EXIT_SUCCESS);
 
-exit_fail:
+  exit_fail:
   c_ctrl_cleanup();
   exit(EXIT_FAILURE);
 }
